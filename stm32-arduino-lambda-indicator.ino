@@ -2,7 +2,7 @@
 
 //constants
   //general
-  const uint16_t V_REFI = 1200;       //STM32F103 internal reference voltage [mV]
+  const uint16_t V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
   const uint16_t V_LEAN2 = 100;       //very lean mixture voltage [mV]
   const uint16_t V_LEAN1 = 200;       //lean mixture voltage [mV]
   const uint16_t V_RICH1 = 700;       //rich mixture voltage [mV]
@@ -19,6 +19,7 @@
   const uint16_t LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
   const uint16_t LED_RICH1 = PB15;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
   const uint16_t LED_RICH2 = PA8;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
+  const uint16_t LED_ONBOARD = PC13;  //LED on the bluepill board
 
 //global variables
 uint16_t lambda_voltage, lambda_value, vref_value, i;
@@ -27,7 +28,7 @@ uint32_t lambda_voltage_avg_sum;
 void setup() {
   // initialize serial communications at 9600 bps:
   Serial.begin(115200);
-  while (!Serial);
+  //while (!Serial);                  //need to be removed, otherwise will not run WO PC :D
   Serial.print(F("\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\nConfiguration\r\n=============\r\nLED update delay: "));
   Serial.print(CYCLE_DELAY);
   Serial.print(F("ms\r\nSamples avg for serial console: "));
@@ -56,21 +57,23 @@ void setup() {
   digitalWrite(LED_RICH1, HIGH);
   pinMode(LED_RICH2, OUTPUT);
   digitalWrite(LED_RICH2, HIGH);
+  pinMode(LED_ONBOARD, OUTPUT);
+  digitalWrite(LED_ONBOARD, HIGH);
   
   //do some fancy fx with LEDs on boot
-  delay(100);
+  delay(250);
   digitalWrite(LED_LEAN2, HIGH);
   digitalWrite(LED_LEAN1, LOW);
-  delay(100);
+  delay(250);
   digitalWrite(LED_LEAN1, HIGH);
   digitalWrite(LED_RIGHT, LOW);
-  delay(100);
+  delay(250);
   digitalWrite(LED_RIGHT, HIGH);
   digitalWrite(LED_RICH1, LOW);
-  delay(100);
+  delay(250);
   digitalWrite(LED_RICH1, HIGH);
   digitalWrite(LED_RICH2, LOW);
-  delay(100);
+  delay(250);
 }
 
 void loop() {
@@ -130,5 +133,6 @@ void loop() {
     }
     delay(CYCLE_DELAY);
   }
+  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flash the onboard LED to indicate we are alive
   Serial.printf(" - lambda voltage avg: %umV\r\n", lambda_voltage_avg_sum / N_AVG);
 }
