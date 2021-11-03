@@ -29,8 +29,8 @@
 
   //LCD pins
   const uint16_t TFT_CS = PA4;
-  const uint16_t TFT_RST = PB0;
-  const uint16_t TFT_DC = PB1;
+  const uint16_t TFT_RST = PB11;
+  const uint16_t TFT_DC = PB10;
 
   //menu
   const uint8_t TEXT_W = 5;
