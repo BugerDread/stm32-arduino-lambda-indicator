@@ -15,9 +15,17 @@
   const uint16_t V_RICH2 = 800;       //very rich mixture voltage [mV]
   const uint16_t CYCLE_DELAY = 50;    //delay for each round [ms]
   const uint8_t N_AVG = 20;           //how many samples to average to show on serial
+  const uint16_t V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
+  const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
+  const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   
   //inputs
   const uint16_t LAMBDA_INPUT = A0;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
+  const uint16_t VBATT_INPUT = A1;    //battery voltage input
+
+  //analog inputs calibration
+  const uint16_t VBATT_CAL_IN = 4520;
+  const uint16_t VBATT_CAL_OUT = 801;
 
   //outputs
   const uint16_t LED_LEAN2 = PB12;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
@@ -69,20 +77,41 @@
   
 
 //global variables
-uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value, i;
+uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value, battery_voltage, battery_voltage_uncal, i;
 uint32_t lambda_voltage_avg_sum ;
+uint8_t len;
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 void showvlues() {
 
   //battery
+  //measure
+  //vref_value = analogRead(AVREF);
+  battery_voltage_uncal = (((uint32_t)analogRead(VBATT_INPUT) * V_REFI) / vref_value);
+  battery_voltage = ((uint32_t)battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_OUT;
+  //Serial.printf("Vbatt = %umV\r\nVbatt_uncal = %umV\r\n", battery_voltage, battery_voltage_uncal);
+  //show
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, BATTERY_TXT_Y);
-  tft.print(F("13.6V"));
-  tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+  tft.printf("%u.%u%uV", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10);   
+  //tft.printf("%u.%u%uV%n", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10, &len); //https://www.geeksforgeeks.org/g-fact-31/
+  //tft.printf("%-*s", 6 - len, "V");                                                       //https://stackoverflow.com/questions/276827/string-padding-in-c
+  if (battery_voltage < 10000) tft.print(" ");
   tft.setCursor(VAL2_X, BATTERY_TXT_Y);
-  tft.print(F("  OK  "));
+  if (battery_voltage < V_BATT_FAIL) {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" FAIL "));
+  } else if (battery_voltage < V_BATT_LOW) {
+    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
+    tft.print(F(" LOW  "));
+  } else if (battery_voltage >= V_BATT_HIGH) {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" HIGH "));
+  } else {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
+  }
 
   //lambda
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -173,7 +202,7 @@ void drawbasicscreen() {
   tft.setTextColor(HEADER_COLOR);
   tft.setTextSize(2);
   tft.setTextWrap(false);
-  tft.print(F("MERCEDES-DIAG"));
+  tft.print(F("MERCEDES-PILL"));
   tft.drawFastHLine(0, 19, 160, LINE_COLOR); //0x3186);
   tft.drawFastHLine(0, 20, 160, LINE_COLOR); //0x3186);
   tft.drawFastHLine(0, 0, 160, LINE_COLOR); //0x3186);
@@ -251,6 +280,10 @@ void setup() {
   
   //ADC will use 12bit accuracy
   analogReadResolution(12);
+  
+  //inputs
+  pinMode(LAMBDA_INPUT, INPUT_ANALOG);
+  pinMode(VBATT_INPUT, INPUT_ANALOG);
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
@@ -289,8 +322,9 @@ void setup() {
 
 void loop() {
   lambda_voltage_avg_sum = 0;
+  vref_value = analogRead(AVREF);
   for (i = 1; i <= N_AVG; i++) {    //print status to console only every N-th cycle
-    vref_value = analogRead(AVREF);
+    //vref_value = analogRead(AVREF);
     lambda_value = analogRead(LAMBDA_INPUT);
     lambda_voltage = ((uint32_t)lambda_value * V_REFI) / vref_value;
     lambda_voltage_avg_sum += lambda_voltage;
