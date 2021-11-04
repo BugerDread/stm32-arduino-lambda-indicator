@@ -1,6 +1,11 @@
 //MECEDES-PILL - W124-DIAG
 //by BugerDread
 
+//needed by hardware-timer-based duty-cycle measurement
+#if !defined(STM32_CORE_VERSION) || (STM32_CORE_VERSION  < 0x01090000)
+#error "Due to API change, this sketch is compatible with STM32_CORE_VERSION  >= 0x01090000"
+#endif
+
 //includes
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
@@ -22,12 +27,20 @@
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
+  const uint8_t DUTY_HW_TIMER_PRESCALER = 14; //minimum meas. freq = 72000000/65536/14 = 79Hz, duty signal should be 100Hz
+  const uint8_t DUTY_FAIL_LOW = 10;
+  const uint8_t DUTY_FAIL_HIGH = 90;
+  const uint8_t DUTY_WARN_LOW = 30;
+  const uint8_t DUTY_WARN_HIGH = 70;
+  const uint8_t DUTY_FREQ_LOW = 90;
+  const uint8_t DUTY_FREQ_HIGH = 110;
   
   //inputs
   const uint16_t LAMBDA_INPUT = A0;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
-  const uint16_t VBATT_INPUT = A1;    //battery voltage input
+  const uint16_t BATT_INPUT = A1;    //battery voltage input
   const uint16_t OVP_INPUT = A2;      //OVP voltage input
   const uint16_t ICV_INPUT = A3;      //ICV voltage input
+  const uint16_t DUTY_INPUT = PB9;
 
   //analog inputs calibration
   const uint16_t VBATT_CAL_IN = 4520;
@@ -85,7 +98,6 @@
   const uint16_t WARN_VAL_BGR_COLOR = ST77XX_YELLOW;
   const uint16_t FAIL_VAL_BGR_COLOR = ST77XX_RED;
   
-
 //global variables
 uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value;
 uint16_t battery_voltage, battery_voltage_uncal;
@@ -94,11 +106,123 @@ uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
 uint32_t lambda_voltage_avg_sum ;
 uint8_t len, i;
 
+//hw-timer-duty-cycle-meter
+uint32_t channelRising, channelFalling;
+volatile uint32_t FrequencyMeasured, DutycycleMeasured, LastPeriodCapture = 0, CurrentCapture, HighStateMeasured;
+uint32_t input_freq = 0;
+volatile uint32_t rolloverCompareCount = 0;
+HardwareTimer *MyTim;
+
+//LCD
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+
+/**
+    @brief  Input capture interrupt callback : Compute frequency and dutycycle of input signal
+*/
+void TIMINPUT_Capture_Rising_IT_callback(void)
+{
+  CurrentCapture = MyTim->getCaptureCompare(channelRising);
+  /* frequency computation */
+  if (CurrentCapture > LastPeriodCapture)
+  {
+    FrequencyMeasured = input_freq / (CurrentCapture - LastPeriodCapture);
+    DutycycleMeasured = (HighStateMeasured * 100) / (CurrentCapture - LastPeriodCapture);
+  }
+  else if (CurrentCapture <= LastPeriodCapture)
+  {
+    /* 0x1000 is max overflow value */
+    FrequencyMeasured = input_freq / (0x10000 + CurrentCapture - LastPeriodCapture);
+    DutycycleMeasured = (HighStateMeasured * 100) / (0x10000 + CurrentCapture - LastPeriodCapture); 
+  }
+
+  DutycycleMeasured = 100 - DutycycleMeasured;  //we need to measure duration of "low level" => 100 - DutycycleMeasured
+  LastPeriodCapture = CurrentCapture;
+  rolloverCompareCount = 0;
+}
+
+/* In case of timer rollover, frequency is to low to be measured set values to 0
+   To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
+void Rollover_IT_callback(void)
+{
+  rolloverCompareCount++;
+
+  if (rolloverCompareCount > 1)
+  {
+    FrequencyMeasured = 0;
+    DutycycleMeasured = 0;
+  }
+}
+
+/**
+    @brief  Input capture interrupt callback : Compute frequency and dutycycle of input signal
+*/
+void TIMINPUT_Capture_Falling_IT_callback(void)
+{
+  /* prepare DutyCycle computation */
+  CurrentCapture = MyTim->getCaptureCompare(channelFalling);
+
+  if (CurrentCapture > LastPeriodCapture)
+  {
+    HighStateMeasured = CurrentCapture - LastPeriodCapture;
+  }
+  else if (CurrentCapture <= LastPeriodCapture)
+  {
+    /* 0x1000 is max overflow value */
+    HighStateMeasured = 0x10000 + CurrentCapture - LastPeriodCapture;
+  }
+}
+
+void hw_timer_duty_meter_init() {
+  // Automatically retrieve TIM instance and channelRising associated to pin
+  // This is used to be compatible with all STM32 series automatically.
+  TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(DUTY_INPUT), PinMap_PWM);
+  channelRising = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(DUTY_INPUT), PinMap_PWM));
+
+  // channelRisings come by pair for TIMER_INPUT_FREQ_DUTY_MEASUREMENT mode:
+  // channelRising1 is associated to channelFalling and channelRising3 is associated with channelRising4
+  switch (channelRising) {
+    case 1:
+      channelFalling = 2;
+      break;
+    case 2:
+      channelFalling = 1;
+      break;
+    case 3:
+      channelFalling = 4;
+      break;
+    case 4:
+      channelFalling = 3;
+      break;
+  }
+
+  // Instantiate HardwareTimer object. Thanks to 'new' instantiation, HardwareTimer is not destructed when setup() function is finished.
+  MyTim = new HardwareTimer(Instance);
+
+  // Configure rising edge detection to measure frequency
+  MyTim->setMode(channelRising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, DUTY_INPUT);
+
+  // With a PrescalerFactor = 1, the minimum frequency value to measure is : TIM counter clock / CCR MAX
+  //  = (SystemCoreClock) / 65535
+  // Example on Nucleo_L476RG with systemClock at 80MHz, the minimum frequency is around 1,2 khz
+  // To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision.
+  // The maximum frequency depends on processing of both interruptions and thus depend on board used
+  // Example on Nucleo_L476RG with systemClock at 80MHz the interruptions processing is around 10 microseconds and thus Max frequency is around 100kHz
+  //uint32_t PrescalerFactor = DUTY_HW_TIMER_PRESCALER;
+  MyTim->setPrescaleFactor(DUTY_HW_TIMER_PRESCALER);
+  MyTim->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
+  MyTim->attachInterrupt(channelRising, TIMINPUT_Capture_Rising_IT_callback);
+  MyTim->attachInterrupt(channelFalling, TIMINPUT_Capture_Falling_IT_callback);
+  MyTim->attachInterrupt(Rollover_IT_callback);
+
+  MyTim->resume();
+
+  // Compute this scale factor only once
+  input_freq = MyTim->getTimerClkFreq() / MyTim->getPrescaleFactor();
+}
 
 void get_battery() {
   //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-  battery_voltage_uncal = (((uint32_t)analogRead(VBATT_INPUT) * V_REFI) / vref_value);
+  battery_voltage_uncal = (((uint32_t)analogRead(BATT_INPUT) * V_REFI) / vref_value);
   battery_voltage = ((uint32_t)battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_READ;
 #ifdef SDEBUG
   Serial.printf("Vbatt = %umV\r\nVbatt_uncal = %umV\r\n", battery_voltage, battery_voltage_uncal);
@@ -212,15 +336,30 @@ void showvalues() {
   tft.print(F("2500"));
   tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
   tft.setCursor(VAL2_X, RPM_TXT_Y);
-  tft.print(F(" RUN  "));
+  tft.print(F("  OK  "));
 
   //duty
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, DUTY_TXT_Y);
-  tft.print(F("59.8%"));
-  tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+  tft.printf("%u%%", DutycycleMeasured);
+  if (DutycycleMeasured < 100) tft.print(" ");
+  if (DutycycleMeasured < 10) tft.print(" ");
+  //status
   tft.setCursor(VAL2_X, DUTY_TXT_Y);
-  tft.print(F("  OK  "));
+  if ((DutycycleMeasured > DUTY_FAIL_HIGH) or (DutycycleMeasured < DUTY_FAIL_LOW)) {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.printf(F(" FAIL ")); 
+  } else if ((FrequencyMeasured > DUTY_FREQ_HIGH) or (FrequencyMeasured < DUTY_FREQ_LOW)) {
+    //bad freq, should be 100Hz
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.printf(F(" FREQ "));
+  } else if ((DutycycleMeasured >= DUTY_WARN_HIGH) or (DutycycleMeasured <= DUTY_WARN_LOW)) {
+    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
+    tft.printf(F(" WARN "));
+  } else {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
+  }
 
   //ICV
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -270,7 +409,6 @@ void drawbasicscreen() {
   tft.setTextColor(TXT_PARAM_COLOR);
   
   //battery
-  
   tft.setCursor(TXT_X, BATTERY_TXT_Y);
   tft.print(F("Battery"));
   tft.drawFastHLine(LINE_X, BATTERY_LINE_Y, LINE_LEN, LINE_COLOR);
@@ -340,13 +478,15 @@ void setup() {
   
   //inputs
   pinMode(LAMBDA_INPUT, INPUT_ANALOG);
-  pinMode(VBATT_INPUT, INPUT_ANALOG);
+  pinMode(BATT_INPUT, INPUT_ANALOG);
   pinMode(OVP_INPUT, INPUT_ANALOG);
   pinMode(ICV_INPUT, INPUT_ANALOG);
-  pinMode(PB8, OUTPUT);
+  pinMode(PB0, OUTPUT);             //testing 100Hz 50% duty signal
   analogWriteFrequency(100);
-  analogWrite(PB8, 128);
-  
+  analogWrite(PB0, 110);
+
+  //init hw-timer-duty-cycle-meter
+  hw_timer_duty_meter_init();
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
@@ -448,4 +588,6 @@ void loop() {
   get_ovp();
   get_icv();
   showvalues();
+  Serial.print((String)"Frequency = " + FrequencyMeasured);
+  Serial.println((String)"    Dutycycle = " + DutycycleMeasured);
 }
