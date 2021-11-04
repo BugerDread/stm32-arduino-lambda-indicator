@@ -119,7 +119,11 @@ void get_icv() {
   //ovp_voltage needs to be known
   icv_voltage_uncal = (((uint32_t)analogRead(ICV_INPUT) * V_REFI) / vref_value);
   icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
-  icv_voltage = ovp_voltage - icv_voltage_abs;
+  if (ovp_voltage > icv_voltage_abs) { 
+    icv_voltage = ovp_voltage - icv_voltage_abs;
+  } else {
+    icv_voltage = 0;
+  }
 #ifdef SDEBUG
   Serial.printf("ICV = %umV\r\nICV_abs = %umV\r\nICV_uncal = %umV\r\n", icv_voltage, icv_voltage_abs, icv_voltage_uncal);
 #endif    
@@ -337,6 +341,12 @@ void setup() {
   //inputs
   pinMode(LAMBDA_INPUT, INPUT_ANALOG);
   pinMode(VBATT_INPUT, INPUT_ANALOG);
+  pinMode(OVP_INPUT, INPUT_ANALOG);
+  pinMode(ICV_INPUT, INPUT_ANALOG);
+  pinMode(PB8, OUTPUT);
+  analogWriteFrequency(100);
+  analogWrite(PB8, 128);
+  
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
