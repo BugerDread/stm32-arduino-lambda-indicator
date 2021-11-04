@@ -1,10 +1,13 @@
-//Lambda (O2) sensor indicator by BugerDread
+//MECEDES-PILL - W124-DIAG
+//by BugerDread
 
 //includes
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
 #include <SPI.h>
 #include "mercedescut.h"
+
+#define SDEBUG
 
 //constants
   //general
@@ -18,14 +21,21 @@
   const uint16_t V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
+  const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
   
   //inputs
   const uint16_t LAMBDA_INPUT = A0;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
   const uint16_t VBATT_INPUT = A1;    //battery voltage input
+  const uint16_t OVP_INPUT = A2;      //OVP voltage input
+  const uint16_t ICV_INPUT = A3;      //ICV voltage input
 
   //analog inputs calibration
   const uint16_t VBATT_CAL_IN = 4520;
-  const uint16_t VBATT_CAL_OUT = 801;
+  const uint16_t VBATT_CAL_READ = 801;
+  const uint16_t OVP_CAL_IN = 4520;
+  const uint16_t OVP_CAL_READ = 801;
+  const uint16_t ICV_CAL_IN = 4520;
+  const uint16_t ICV_CAL_READ = 801;
 
   //outputs
   const uint16_t LED_LEAN2 = PB12;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
@@ -77,21 +87,47 @@
   
 
 //global variables
-uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value, battery_voltage, battery_voltage_uncal, i;
+uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value;
+uint16_t battery_voltage, battery_voltage_uncal;
+uint16_t ovp_voltage, ovp_voltage_uncal;
+uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
 uint32_t lambda_voltage_avg_sum ;
-uint8_t len;
+uint8_t len, i;
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
-void showvlues() {
+void get_battery() {
+  //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
+  battery_voltage_uncal = (((uint32_t)analogRead(VBATT_INPUT) * V_REFI) / vref_value);
+  battery_voltage = ((uint32_t)battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_READ;
+#ifdef SDEBUG
+  Serial.printf("Vbatt = %umV\r\nVbatt_uncal = %umV\r\n", battery_voltage, battery_voltage_uncal);
+#endif
+}
+
+void get_ovp() {
+  //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
+  ovp_voltage_uncal = (((uint32_t)analogRead(OVP_INPUT) * V_REFI) / vref_value);
+  ovp_voltage = ((uint32_t)ovp_voltage_uncal * OVP_CAL_IN) / OVP_CAL_READ;
+#ifdef SDEBUG
+  Serial.printf("OVP = %umV\r\nOVP_uncal = %umV\r\n", ovp_voltage, ovp_voltage_uncal);
+#endif  
+}
+
+void get_icv() {
+  //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
+  //ovp_voltage needs to be known
+  icv_voltage_uncal = (((uint32_t)analogRead(ICV_INPUT) * V_REFI) / vref_value);
+  icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
+  icv_voltage = ovp_voltage - icv_voltage_abs;
+#ifdef SDEBUG
+  Serial.printf("ICV = %umV\r\nICV_abs = %umV\r\nICV_uncal = %umV\r\n", icv_voltage, icv_voltage_abs, icv_voltage_uncal);
+#endif    
+}
+
+void showvalues() {
 
   //battery
-  //measure
-  //vref_value = analogRead(AVREF);
-  battery_voltage_uncal = (((uint32_t)analogRead(VBATT_INPUT) * V_REFI) / vref_value);
-  battery_voltage = ((uint32_t)battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_OUT;
-  //Serial.printf("Vbatt = %umV\r\nVbatt_uncal = %umV\r\n", battery_voltage, battery_voltage_uncal);
-  //show
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, BATTERY_TXT_Y);
   tft.printf("%u.%u%uV", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10);   
@@ -150,14 +186,21 @@ void showvlues() {
     tft.print(F("V-RICH"));
   }      
   
-
   //ovp
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, OVP_TXT_Y);
-  tft.print(F("0.0V"));
-  tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+  //tft.print(F("0.0V"));
+  tft.printf("%u.%u%uV", ovp_voltage / 1000, (ovp_voltage / 100) % 10, (ovp_voltage / 10) % 10);
+  if (ovp_voltage < 10000) tft.print(" ");
+  //status
   tft.setCursor(VAL2_X, OVP_TXT_Y);
-  tft.print(F(" FAIL "));
+  if ((ovp_voltage + 500) >= battery_voltage) {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
+  } else {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" FAIL "));
+  }
 
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -178,10 +221,20 @@ void showvlues() {
   //ICV
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, ICV_TXT_Y);
-  tft.print(F("0.0V"));  
-  tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+  //tft.print(F("0.0V")); 
+  tft.printf("%u.%u%uV", icv_voltage / 1000, (icv_voltage / 100) % 10, (icv_voltage / 10) % 10);
+  if (icv_voltage < 10000) tft.print(" ");
   tft.setCursor(VAL2_X, ICV_TXT_Y);
-  tft.print(F(" FAIL "));  
+  if (icv_voltage >= ICV_VOLTAGE_MIN) {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
+  } else {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" FAIL "));
+  } 
+  //tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+  //tft.setCursor(VAL2_X, ICV_TXT_Y);
+  //tft.print(F(" FAIL "));  
 
   //LPG
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -381,5 +434,8 @@ void loop() {
   digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flash the onboard LED to indicate we are alive
   lambda_voltage_avg = lambda_voltage_avg_sum / N_AVG;
   Serial.printf(" - lambda voltage avg: %umV\r\n", lambda_voltage_avg);
-  showvlues();
+  get_battery();
+  get_ovp();
+  get_icv();
+  showvalues();
 }
