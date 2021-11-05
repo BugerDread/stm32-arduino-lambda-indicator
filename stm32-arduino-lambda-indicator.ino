@@ -27,7 +27,8 @@
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint8_t DUTY_HW_TIMER_PRESCALER = 14; //minimum meas. freq = 72000000/65536/14 = 79Hz, duty signal should be 100Hz
+  const uint8_t DUTY_HW_TIMER_PRESCALER = 36; //minimum meas. freq = 72000000/65536/14 = 79Hz, duty signal should be 100Hz
+                                              //36 = 30Hz, DUTY and RPM meter share same timer T4
   const uint8_t DUTY_FAIL_LOW = 10;
   const uint8_t DUTY_FAIL_HIGH = 90;
   const uint8_t DUTY_WARN_LOW = 30;
@@ -41,6 +42,7 @@
   const uint16_t OVP_INPUT = A2;      //OVP voltage input
   const uint16_t ICV_INPUT = A3;      //ICV voltage input
   const uint16_t DUTY_INPUT = PB9;
+  const uint16_t RPM_INPUT = PB7;
 
   //analog inputs calibration
   const uint16_t VBATT_CAL_IN = 4520;
@@ -112,6 +114,10 @@ volatile uint32_t FrequencyMeasured, DutycycleMeasured, LastPeriodCapture = 0, C
 uint32_t input_freq = 0;
 volatile uint32_t rolloverCompareCount = 0;
 HardwareTimer *MyTim;
+//rpm-meter
+uint32_t rpm_channel;
+volatile uint32_t rpm_FrequencyMeasured, rpm_LastCapture = 0, rpm_CurrentCapture;
+volatile uint32_t rpm_rolloverCompareCount = 0;
 
 //LCD
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
@@ -151,6 +157,13 @@ void Rollover_IT_callback(void)
     FrequencyMeasured = 0;
     DutycycleMeasured = 0;
   }
+
+  rpm_rolloverCompareCount++;
+
+  if (rpm_rolloverCompareCount > 1)
+  {
+    rpm_FrequencyMeasured = 0;
+  }
 }
 
 /**
@@ -172,11 +185,30 @@ void TIMINPUT_Capture_Falling_IT_callback(void)
   }
 }
 
-void hw_timer_duty_meter_init() {
+void rpm_InputCapture_IT_callback(void)
+{
+  rpm_CurrentCapture = MyTim->getCaptureCompare(rpm_channel);
+  /* frequency computation */
+  if (rpm_CurrentCapture > rpm_LastCapture) {
+    rpm_FrequencyMeasured = input_freq / (rpm_CurrentCapture - rpm_LastCapture);
+  }
+  else if (rpm_CurrentCapture <= rpm_LastCapture) {
+    /* 0x1000 is max overflow value */
+    rpm_FrequencyMeasured = input_freq / (0x10000 + rpm_CurrentCapture - rpm_LastCapture);
+  }
+  rpm_LastCapture = rpm_CurrentCapture;
+  rpm_rolloverCompareCount = 0;
+}
+
+void hw_timer_rpm_duty_meter_init() {
   // Automatically retrieve TIM instance and channelRising associated to pin
   // This is used to be compatible with all STM32 series automatically.
   TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(DUTY_INPUT), PinMap_PWM);
+  //selected pins for DUTY_INPUT PB9, PB7 and RPM_INPUT use the same timer T4 therefore another timer instance not nttded / possible
+  //cant use PB8 as RPM input because duty cycle measurement uses T4C3 also, therefore PB7 used (PB6 also works)
+  //TIM_TypeDef *rpm_Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(pin), PinMap_PWM);  
   channelRising = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(DUTY_INPUT), PinMap_PWM));
+  rpm_channel = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(RPM_INPUT), PinMap_PWM));
 
   // channelRisings come by pair for TIMER_INPUT_FREQ_DUTY_MEASUREMENT mode:
   // channelRising1 is associated to channelFalling and channelRising3 is associated with channelRising4
@@ -200,6 +232,7 @@ void hw_timer_duty_meter_init() {
 
   // Configure rising edge detection to measure frequency
   MyTim->setMode(channelRising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, DUTY_INPUT);
+  MyTim->setMode(rpm_channel, TIMER_INPUT_CAPTURE_RISING, RPM_INPUT);
 
   // With a PrescalerFactor = 1, the minimum frequency value to measure is : TIM counter clock / CCR MAX
   //  = (SystemCoreClock) / 65535
@@ -212,6 +245,7 @@ void hw_timer_duty_meter_init() {
   MyTim->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
   MyTim->attachInterrupt(channelRising, TIMINPUT_Capture_Rising_IT_callback);
   MyTim->attachInterrupt(channelFalling, TIMINPUT_Capture_Falling_IT_callback);
+  MyTim->attachInterrupt(rpm_channel, rpm_InputCapture_IT_callback);
   MyTim->attachInterrupt(Rollover_IT_callback);
 
   MyTim->resume();
@@ -333,7 +367,7 @@ void showvalues() {
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, RPM_TXT_Y);
-  tft.print(F("2500"));
+  tft.printf("%-6u", rpm_FrequencyMeasured * 15);
   tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
   tft.setCursor(VAL2_X, RPM_TXT_Y);
   tft.print(F("  OK  "));
@@ -481,12 +515,15 @@ void setup() {
   pinMode(BATT_INPUT, INPUT_ANALOG);
   pinMode(OVP_INPUT, INPUT_ANALOG);
   pinMode(ICV_INPUT, INPUT_ANALOG);
+  pinMode(DUTY_INPUT, INPUT);
+  pinMode(RPM_INPUT, INPUT);
   pinMode(PB0, OUTPUT);             //testing 100Hz 50% duty signal
   analogWriteFrequency(100);
   analogWrite(PB0, 110);
 
   //init hw-timer-duty-cycle-meter
-  hw_timer_duty_meter_init();
+  hw_timer_rpm_duty_meter_init();
+//  hw_timer_rpm_meter_init();
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
@@ -590,4 +627,6 @@ void loop() {
   showvalues();
   Serial.print((String)"Frequency = " + FrequencyMeasured);
   Serial.println((String)"    Dutycycle = " + DutycycleMeasured);
+  Serial.println((String)"RPM Frequency = " + rpm_FrequencyMeasured);
+  
 }
