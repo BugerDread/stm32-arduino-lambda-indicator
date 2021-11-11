@@ -12,7 +12,7 @@
 #include <SPI.h>
 #include "mercedescut.h"
 
-#define SDEBUG
+// #define SDEBUG
 
 //constants
   //general
@@ -21,8 +21,8 @@
   const uint16_t V_LEAN1 = 200;       //lean mixture voltage [mV]
   const uint16_t V_RICH1 = 700;       //rich mixture voltage [mV]
   const uint16_t V_RICH2 = 800;       //very rich mixture voltage [mV]
-  const uint16_t CYCLE_DELAY = 50;    //delay for each round [ms]
-  const uint8_t N_AVG = 20;           //how many samples to average to show on serial
+  const uint16_t CYCLE_DELAY = 1000;    //delay for each round [ms]
+  //const uint8_t N_AVG = 20;           //how many samples to average to show on serial
   const uint16_t V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
@@ -48,6 +48,8 @@
   const uint16_t RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
   //analog inputs calibration
+  const uint16_t LAMBDA_CAL_IN = 629;
+  const uint16_t LAMBDA_CAL_READ = 1870;
   const uint16_t VBATT_CAL_IN = 4520;
   const uint16_t VBATT_CAL_READ = 801;
   const uint16_t OVP_CAL_IN = 4520;   //not calibrated yet
@@ -104,12 +106,13 @@
   const uint16_t FAIL_VAL_BGR_COLOR = ST77XX_RED;
   
 //global variables
+uint16_t battery_raw, ovp_raw, icv_raw;
 uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value;
 uint16_t battery_voltage, battery_voltage_uncal;
 uint16_t ovp_voltage, ovp_voltage_uncal;
 uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
-uint32_t lambda_voltage_avg_sum ;
-uint8_t i;
+//uint32_t lambda_voltage_avg_sum ;
+uint8_t i, t = 1;
 unsigned long millis_pre, millis_post;
 
 //history
@@ -157,6 +160,8 @@ void TIMINPUT_Capture_Rising_IT_callback(void)
    To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
 void Rollover_IT_callback(void)
 {
+  //this is called with about 30Hz frequency
+  
   rolloverCompareCount++;
 
   if (rolloverCompareCount > 1)
@@ -171,6 +176,16 @@ void Rollover_IT_callback(void)
   {
     rpm_Measured = 0;
   }
+  //read all analog values
+  //because if some of them are read in interrupt and some of them in main loop it results if wrong reading (usually 0)
+  //most probably when there is one analogread() running, interrupt comes and another one is started
+  //these all reagings takes < 1ms together
+  vref_value = analogRead(AVREF);
+  lambda();
+  battery_raw = analogRead(BATT_INPUT);   //here we read just raw values
+  ovp_raw =  analogRead(OVP_INPUT);       //we will calculate voltages when we need them (when is time to display them)
+  icv_raw = analogRead(ICV_INPUT);        //it does not make sense to calculate these voltages every 1/30s and display them once
+
 }
 
 /**
@@ -261,9 +276,60 @@ void hw_timer_rpm_duty_meter_init() {
   input_freq = MyTim->getTimerClkFreq() / MyTim->getPrescaleFactor();
 }
 
+void lambda() {
+  lambda_value = analogRead(LAMBDA_INPUT);
+  lambda_voltage = ((((uint32_t)lambda_value * V_REFI) / vref_value ) * LAMBDA_CAL_IN ) / LAMBDA_CAL_READ;
+  //=> lambda_voltage * LAMBDA_CAL_READ / LAMBDA_CAL_IN * vref_value / V_REFI = lambda_value
+  //lambda_voltage_avg_sum += lambda_voltage;
+  lambda_voltage_avg = lambda_voltage;    //temp hack
+
+  //control LEDz
+  if (lambda_voltage <= V_LEAN2) {
+    //very lean
+    digitalWrite(LED_LEAN2, LOW);
+    digitalWrite(LED_LEAN1, HIGH);
+    digitalWrite(LED_RIGHT, HIGH);
+    digitalWrite(LED_RICH1, HIGH);
+    digitalWrite(LED_RICH2, HIGH);
+    
+  } else if ((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
+    //lean
+    digitalWrite(LED_LEAN2, HIGH);
+    digitalWrite(LED_LEAN1, LOW);
+    digitalWrite(LED_RIGHT, HIGH);
+    digitalWrite(LED_RICH1, HIGH);
+    digitalWrite(LED_RICH2, HIGH);
+    
+  } else if ((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
+    //right
+    digitalWrite(LED_LEAN2, HIGH);
+    digitalWrite(LED_LEAN1, HIGH);
+    digitalWrite(LED_RIGHT, LOW);
+    digitalWrite(LED_RICH1, HIGH);
+    digitalWrite(LED_RICH2, HIGH);
+    
+  } else if ((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
+    //rich
+    digitalWrite(LED_LEAN2, HIGH);
+    digitalWrite(LED_LEAN1, HIGH);
+    digitalWrite(LED_RIGHT, HIGH);
+    digitalWrite(LED_RICH1, LOW);
+    digitalWrite(LED_RICH2, HIGH);
+    
+  } else if (V_RICH2 <= lambda_voltage) {
+    //very rich
+    digitalWrite(LED_LEAN2, HIGH);
+    digitalWrite(LED_LEAN1, HIGH);
+    digitalWrite(LED_RIGHT, HIGH);
+    digitalWrite(LED_RICH1, HIGH);
+    digitalWrite(LED_RICH2, LOW);
+    
+  }
+}
+
 void get_battery() {
   //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-  battery_voltage_uncal = (((uint32_t)analogRead(BATT_INPUT) * V_REFI) / vref_value);
+  battery_voltage_uncal = (((uint32_t)battery_raw * V_REFI) / vref_value);
   battery_voltage = ((uint32_t)battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_READ;
 #ifdef SDEBUG
   Serial.printf("Vbatt = %umV\r\nVbatt_uncal = %umV\r\n", battery_voltage, battery_voltage_uncal);
@@ -272,7 +338,7 @@ void get_battery() {
 
 void get_ovp() {
   //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-  ovp_voltage_uncal = (((uint32_t)analogRead(OVP_INPUT) * V_REFI) / vref_value);
+  ovp_voltage_uncal = (((uint32_t)ovp_raw * V_REFI) / vref_value);
   ovp_voltage = ((uint32_t)ovp_voltage_uncal * OVP_CAL_IN) / OVP_CAL_READ;
 #ifdef SDEBUG
   Serial.printf("OVP = %umV\r\nOVP_uncal = %umV\r\n", ovp_voltage, ovp_voltage_uncal);
@@ -282,7 +348,7 @@ void get_ovp() {
 void get_icv() {
   //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
   //ovp_voltage needs to be known
-  icv_voltage_uncal = (((uint32_t)analogRead(ICV_INPUT) * V_REFI) / vref_value);
+  icv_voltage_uncal = (((uint32_t)icv_raw * V_REFI) / vref_value);
   icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
   if (ovp_voltage > icv_voltage_abs) { 
     icv_voltage = ovp_voltage - icv_voltage_abs;
@@ -502,8 +568,8 @@ void setup() {
   //while (!Serial);                  //need to be removed, otherwise will not run WO PC :D
   Serial.print(F("\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\nConfiguration\r\n=============\r\nLED update delay: "));
   Serial.print(CYCLE_DELAY);
-  Serial.print(F("ms\r\nSamples avg for serial console: "));
-  Serial.print(N_AVG);
+//  Serial.print(F("ms\r\nSamples avg for serial console: "));
+//  Serial.print(N_AVG);
   Serial.print(F("\r\nVery lean mixture: "));
   Serial.print(V_LEAN2);
   Serial.print(F("mV\r\nLean mixture: "));
@@ -539,9 +605,6 @@ void setup() {
   analogWriteFrequency(100);
   analogWrite(PB0, 100);
 
-  //init hw-timer-duty-cycle-meter
-  hw_timer_rpm_duty_meter_init();
-
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
   digitalWrite(LED_LEAN2, LOW);
@@ -571,80 +634,27 @@ void setup() {
   digitalWrite(LED_RICH2, LOW);
   delay(750);
 
+  vref_value = analogRead(AVREF);
+  
+  //init hw-timer-duty-cycle-meter
+  hw_timer_rpm_duty_meter_init();
+
   drawbasicscreen();
 }
 
 void loop() {
-  lambda_voltage_avg_sum = 0;
-  vref_value = analogRead(AVREF);
-  for (i = 1; i <= N_AVG; i++) {    //print status to console only every N-th cycle
-    //vref_value = analogRead(AVREF);
-    lambda_value = analogRead(LAMBDA_INPUT);
-    
-    lambda_voltage = ((uint32_t)lambda_value * V_REFI) / vref_value;
-    lambda_voltage_avg_sum += lambda_voltage;
-  
-    //control LEDz
-    if (lambda_voltage <= V_LEAN2) {
-      //very lean
-      digitalWrite(LED_LEAN2, LOW);
-      digitalWrite(LED_LEAN1, HIGH);
-      digitalWrite(LED_RIGHT, HIGH);
-      digitalWrite(LED_RICH1, HIGH);
-      digitalWrite(LED_RICH2, HIGH);
-      if (i == N_AVG) Serial.print("#0000");
-      
-    } else if ((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
-      //lean
-      digitalWrite(LED_LEAN2, HIGH);
-      digitalWrite(LED_LEAN1, LOW);
-      digitalWrite(LED_RIGHT, HIGH);
-      digitalWrite(LED_RICH1, HIGH);
-      digitalWrite(LED_RICH2, HIGH);
-      if (i == N_AVG) Serial.print("0#000");
-      
-    } else if ((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
-      //right
-      digitalWrite(LED_LEAN2, HIGH);
-      digitalWrite(LED_LEAN1, HIGH);
-      digitalWrite(LED_RIGHT, LOW);
-      digitalWrite(LED_RICH1, HIGH);
-      digitalWrite(LED_RICH2, HIGH);
-      if (i == N_AVG) Serial.print("00#00");
-      
-    } else if ((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
-      //rich
-      digitalWrite(LED_LEAN2, HIGH);
-      digitalWrite(LED_LEAN1, HIGH);
-      digitalWrite(LED_RIGHT, HIGH);
-      digitalWrite(LED_RICH1, LOW);
-      digitalWrite(LED_RICH2, HIGH);
-      if (i == N_AVG) Serial.print("000#0");
-      
-    } else if (V_RICH2 <= lambda_voltage) {
-      //very rich
-      digitalWrite(LED_LEAN2, HIGH);
-      digitalWrite(LED_LEAN1, HIGH);
-      digitalWrite(LED_RIGHT, HIGH);
-      digitalWrite(LED_RICH1, HIGH);
-      digitalWrite(LED_RICH2, LOW);
-      if (i == N_AVG) Serial.print("0000#");
-      
-    }
-    millis_post = millis();
-    
-    delay(CYCLE_DELAY);
-  }
+//  lambda_voltage_avg_sum = 0;
+  //
   digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flash the onboard LED to indicate we are alive
-  lambda_voltage_avg = lambda_voltage_avg_sum / N_AVG;
+  //lambda_voltage_avg = lambda_voltage_avg_sum / N_AVG;
   //Serial.printf(" - lambda voltage avg: %umV\r\n", lambda_voltage_avg);
   get_battery();
   get_ovp();
   get_icv();
-  millis_pre = millis();
+  
   showvalues();
-  millis_post = millis();
-  Serial.printf("LCD update took %ums\r\n", millis_post - millis_pre);
+  
+  delay(CYCLE_DELAY);
   
   //Serial.print((String)"Frequency = " + FrequencyMeasured);
   //Serial.println((String)"    Dutycycle = " + DutycycleMeasured);
