@@ -135,8 +135,8 @@ volatile uint32_t rpm_rolloverCompareCount = 0;
 //            MOSI  MISO  SCLK
 SPIClass SPI3(PB5, PB4, PB3);
 const uint16_t TFT_CS = PA15;
-const uint16_t TFT_RST = PA13;      //PB11;
-const uint16_t TFT_DC = PA14;       //PB10;
+const uint16_t TFT_RST = PB6;      //PB11; ??and PB6 as RST
+const uint16_t TFT_DC = PB8;       //PB10; ??can we use MISO (PB4) for this as MISO is not used (no out from display to STM)?? - NOPE
 
 //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
