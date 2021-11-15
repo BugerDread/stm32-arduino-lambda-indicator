@@ -1,6 +1,11 @@
 //MECEDES-PILL - W124-DIAG
 //by BugerDread
 
+//options
+//board: buepillF103CB (or C8 with 128k)
+//USART support: disabled (no Serial support)
+//USB support: CDC (generic Serial supersede USART)
+
 //needed by hardware-timer-based duty-cycle measurement
 #if !defined(STM32_CORE_VERSION) || (STM32_CORE_VERSION  < 0x01090000)
 #error "Due to API change, this sketch is compatible with STM32_CORE_VERSION  >= 0x01090000"
@@ -27,8 +32,8 @@
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 36; //DUTY and RPM meter share same timer T4, minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 30Hz
-  const uint8_t FREQ_TO_RPM = 15;     //1Hz = 15rpm
+  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 144; //36 DUTY and RPM meter share same timer T4, minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 30Hz
+  const uint8_t FREQ_TO_RPM = 30;     //1Hz = 15rpm
   const uint16_t RPM_IDLE_MAX = 1200;
   const uint16_t RPM_MAX = 7000;
                                               
@@ -44,7 +49,7 @@
   const uint16_t BATT_INPUT = A1;     //battery voltage input
   const uint16_t OVP_INPUT = A2;      //OVP voltage input
   const uint16_t ICV_INPUT = A3;      //ICV voltage input
-  const uint16_t DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
+  const uint16_t DUTY_INPUT =PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
   const uint16_t RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
   //analog inputs calibration
@@ -65,10 +70,7 @@
   const uint16_t LED_RICH2 = PA8;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
   const uint16_t LED_ONBOARD = PC13;  //LED on the bluepill board
 
-  //LCD pins
-  const uint16_t TFT_CS = PA4;
-  const uint16_t TFT_RST = PA13;      //PB11;
-  const uint16_t TFT_DC = PA14;       //PB10;
+
 
   //menu
   const uint8_t TEXT_W = 5;
@@ -129,8 +131,15 @@ uint32_t rpm_channel;
 volatile uint32_t rpm_Measured, rpm_LastCapture = 0, rpm_CurrentCapture;
 volatile uint32_t rpm_rolloverCompareCount = 0;
 
-//LCD
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+//LCD pins
+//            MOSI  MISO  SCLK
+SPIClass SPI3(PB5, PB4, PB3);
+const uint16_t TFT_CS = PA15;
+const uint16_t TFT_RST = PA13;      //PB11;
+const uint16_t TFT_DC = PA14;       //PB10;
+
+//Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
 
 /**
     @brief  Input capture interrupt callback : Compute frequency and dutycycle of input signal
@@ -176,6 +185,7 @@ void Rollover_IT_callback(void)
   {
     rpm_Measured = 0;
   }
+  
   //read all analog values
   //because if some of them are read in interrupt and some of them in main loop it results if wrong reading (usually 0)
   //most probably when there is one analogread() running, interrupt comes and another one is started
@@ -212,14 +222,16 @@ void rpm_InputCapture_IT_callback(void)
   rpm_CurrentCapture = MyTim->getCaptureCompare(rpm_channel);
   /* frequency computation */
   if (rpm_CurrentCapture > rpm_LastCapture) {
-    rpm_Measured = input_freq / (rpm_CurrentCapture - rpm_LastCapture) * FREQ_TO_RPM;
+    rpm_Measured = input_freq * FREQ_TO_RPM / (rpm_CurrentCapture - rpm_LastCapture);
   }
   else if (rpm_CurrentCapture <= rpm_LastCapture) {
     /* 0x1000 is max overflow value */
-    rpm_Measured = input_freq / (0x10000 + rpm_CurrentCapture - rpm_LastCapture) * FREQ_TO_RPM;
+    rpm_Measured = input_freq * FREQ_TO_RPM / (0x10000 + rpm_CurrentCapture - rpm_LastCapture);
   }
   rpm_LastCapture = rpm_CurrentCapture;
   rpm_rolloverCompareCount = 0;
+  
+  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flash the onboard LED to indicate we are alive
 }
 
 void hw_timer_rpm_duty_meter_init() {
@@ -254,7 +266,7 @@ void hw_timer_rpm_duty_meter_init() {
 
   // Configure rising edge detection to measure frequency
   MyTim->setMode(channelRising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, DUTY_INPUT);
-  MyTim->setMode(rpm_channel, TIMER_INPUT_CAPTURE_RISING, RPM_INPUT);
+  MyTim->setMode(rpm_channel, TIMER_INPUT_CAPTURE_RISING, RPM_INPUT); //or _FALLING if want to detect the other edge
 
   // With a PrescalerFactor = 1, the minimum frequency value to measure is : TIM counter clock / CCR MAX
   //  = (SystemCoreClock) / 65535
@@ -600,10 +612,14 @@ void setup() {
   pinMode(OVP_INPUT, INPUT_ANALOG);
   pinMode(ICV_INPUT, INPUT_ANALOG);
   pinMode(DUTY_INPUT, INPUT);
-  pinMode(RPM_INPUT, INPUT);
-  pinMode(PB0, OUTPUT);             //testing 100Hz 50% duty signal
-  analogWriteFrequency(100);
-  analogWrite(PB0, 100);
+  pinMode(RPM_INPUT, INPUT_PULLUP);
+  pinMode(PA9, OUTPUT);               //testing signal
+  analogWriteFrequency(100);          //100Hz
+  analogWriteResolution(8);          //we have 16bit timers so use them
+  analogWrite(PA9, 50); //16% ------- 6553500 = 100%
+  //analogWrite(PA9, 11797); //18%
+
+  //delay(10000);
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
@@ -638,6 +654,7 @@ void setup() {
   
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
+  pinMode(RPM_INPUT, INPUT_PULLUP);
 
   drawbasicscreen();
 }
@@ -645,7 +662,7 @@ void setup() {
 void loop() {
 //  lambda_voltage_avg_sum = 0;
   //
-  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flash the onboard LED to indicate we are alive
+  
   //lambda_voltage_avg = lambda_voltage_avg_sum / N_AVG;
   //Serial.printf(" - lambda voltage avg: %umV\r\n", lambda_voltage_avg);
   get_battery();
