@@ -17,7 +17,7 @@
 #include <SPI.h>
 #include "mercedescut.h"
 
-#define SDEBUG
+//#define SDEBUG
 
 //constants
   //general
@@ -35,7 +35,7 @@
   const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 36; //36 DUTY and RPM meter share same timer T4, minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
   const uint8_t FREQ_TO_RPM = 15;     //1Hz = 15rpm
   const uint16_t RPM_IDLE_MAX = 1200;
-  const uint16_t RPM_MAX = 7000;
+  const uint16_t RPM_MAX = 10000;
                                               
   const uint8_t DUTY_FAIL_LOW = 10;
   const uint8_t DUTY_FAIL_HIGH = 90;
@@ -69,8 +69,7 @@
   const uint16_t LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
   const uint16_t LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
   const uint16_t LED_ONBOARD = PC13;  //LED on the bluepill board
-
-
+  const uint16_t ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
 
   //menu
   const uint8_t TEXT_W = 5;
@@ -108,38 +107,103 @@
   const uint16_t FAIL_VAL_BGR_COLOR = ST77XX_RED;
   
 //global variables
-uint16_t battery_raw, ovp_raw, icv_raw;
-uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value;
-uint16_t battery_voltage, battery_voltage_uncal;
-uint16_t ovp_voltage, ovp_voltage_uncal;
-uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
-//uint32_t lambda_voltage_avg_sum ;
-uint8_t i, t = 1;
-unsigned long millis_pre, millis_post;
-
-//history
-
+  uint16_t battery_raw, ovp_raw, icv_raw;
+  uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value;
+  uint16_t battery_voltage, battery_voltage_uncal;
+  uint16_t ovp_voltage, ovp_voltage_uncal;
+  uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
+  //uint32_t lambda_voltage_avg_sum ;
+  uint8_t i, t = 1;
+  unsigned long millis_pre, millis_post;
 
 //hw-timer-duty-cycle-meter
-uint32_t channelRising, channelFalling;
-volatile uint32_t FrequencyMeasured, DutycycleMeasured, LastPeriodCapture = 0, CurrentCapture, HighStateMeasured;
-uint32_t input_freq = 0;
-volatile uint32_t rolloverCompareCount = 0;
-HardwareTimer *MyTim;
+  uint32_t channelRising, channelFalling;
+  volatile uint32_t FrequencyMeasured, DutycycleMeasured, LastPeriodCapture = 0, CurrentCapture, HighStateMeasured;
+  uint32_t input_freq = 0;
+  volatile uint32_t rolloverCompareCount = 0;
+  HardwareTimer *MyTim;
+  
 //rpm-meter
-uint32_t rpm_channel;
-volatile uint32_t rpm_Measured, rpm_LastCapture = 0, rpm_CurrentCapture;
-volatile uint32_t rpm_rolloverCompareCount = 0;
+  uint32_t rpm_channel;
+  volatile uint32_t rpm_Measured, rpm_LastCapture = 0, rpm_CurrentCapture;
+  volatile uint32_t rpm_rolloverCompareCount = 0;
 
-//LCD pins
-//            MOSI  MISO  SCLK
-SPIClass SPI3(PB5, PB4, PB3);
-const uint16_t TFT_CS = PA15;
-const uint16_t TFT_RST = PB6;      //PB11; ??and PB6 as RST
-const uint16_t TFT_DC = PB8;       //PB10; ??can we use MISO (PB4) for this as MISO is not used (no out from display to STM)?? - NOPE
+//LCD           MOSI MISO SCLK
+  SPIClass SPI3(PB5, PB4, PB3);
+  const uint16_t TFT_CS = PA15;
+  const uint16_t TFT_RST = PB6;      //PB11; ??and PB6 as RST
+  const uint16_t TFT_DC = PB8;       //PB10; ??can we use MISO (PB4) for this as MISO is not used (no out from display to STM)?? - NOPE
+  //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+  Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
 
-//Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
-Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
+//PID
+  double Input, Output, Setpoint = 750;
+  double ITerm = 0;
+  double lastInput = 0;
+  double kp = 0;
+  double ki = 0;
+  double kd = 0;
+  uint16_t SampleTime;
+  const double outMin = 0;
+  const double outMax = 255;
+  bool inAuto = true;
+  #define MANUAL 0
+  #define AUTOMATIC 1
+  uint16_t rpmhistory[3]; //history
+
+void Compute()
+{     
+      //we need to filter the rpm_Measured to make sure it is sane:
+      //rpm_Measured == 0 = motor is not spinning or we cant measure such low rpms
+      //rpm_Measured == -1 = we probably got interference because we got rpm > RPM_MAX
+      //we will count failed passes and disable ICV control if sane signal not received for a while?
+      if (rpm_Measured == 0) {
+        //simply skip everything for now
+        return;
+      }
+
+      if (rpm_Measured == -1) {
+        //simply skip everything for now
+        return;
+      }
+      
+      Input = rpm_Measured;
+
+      /*Compute all the working error variables*/
+      double error = Setpoint - Input;
+      ITerm+= (ki * error);
+      if(ITerm> outMax) ITerm= outMax;
+      else if(ITerm< outMin) ITerm= outMin;
+      double dInput = (Input - lastInput);
+ 
+      /*Compute PID Output*/
+      Output = kp * error + ITerm- kd * dInput;
+      if(Output> outMax) Output = outMax;
+      else if(Output < outMin) Output = outMin;
+ 
+      /*Remember some variables for next time*/
+      lastInput = Input;
+//      lastTime = now;
+//
+      Serial.print("\r\nRPM:\t");
+      Serial.print(Input);
+      Serial.print(";\tError:\t");
+      Serial.print(error);
+      Serial.print(";\tITerm:\t");
+      Serial.print(ITerm);
+      Serial.print(";\tOutput:\t");
+      Serial.print(Output);
+}
+
+void SetTunings(double Kp, double Ki, double Kd)
+{
+  double SampleTimeInSec = ((double)SampleTime)/1000;
+   kp = Kp;
+   ki = Ki * SampleTimeInSec;
+   kd = Kd / SampleTimeInSec;
+}
+
+  
 
 /**
     @brief  Input capture interrupt callback : Compute frequency and dutycycle of input signal
@@ -181,9 +245,14 @@ void Rollover_IT_callback(void)
 
   rpm_rolloverCompareCount++;
 
-  if (rpm_rolloverCompareCount > 1)
+  if (rpm_rolloverCompareCount >= 2)   //toto ceknout podle me mam byt > 1 [ses kokot, >= 2 a >1 je to same]
   {
-    rpm_Measured = 0;
+    rpm_Measured = 0;                 //mozna tady taky prumerovat nebo nejak ignorovat par chybejicich pulzu
+    rpm_rolloverCompareCount = 2;     //nene tady nic neprumerovat, v presuseni od inputu se prumeruji jen platne hodnoty, vynechane pusly se ignoruji
+    //v PID procesu pak dame neco jako ze hodnota kdyz rpm_Measured = 0 tak bud je to chyba ze nam upadl signal nebo nam stoji motor
+    //pokud stoji nenadelame uz nic, pokud upadl signal tak zbesilym pridanim zbytecne proturuje motor
+    //=> je nesmysl vytocit ICV na max, spis chvili ho drzet kde zrovna bylo (3s?) a pokud stale nic tak uplne vypnout do failsafe
+    //podobne kdyz bude rpm_Measured = -1 bude to znamenat ze nam jdou na vstup nesmysly (ruseni) a vychazi rpm > RPM_MAX
   }
   
   //read all analog values
@@ -197,6 +266,8 @@ void Rollover_IT_callback(void)
   ovp_raw =  analogRead(OVP_INPUT);       //we will calculate voltages when we need them (when is time to display them)
   icv_raw = analogRead(ICV_INPUT);        //it does not make sense to calculate these voltages every 1/30s and display them once
 
+  Compute(); //process pid
+  analogWrite(PA9, Output);               //send output to ICV - zmenit PA9 na konstantu
 }
 
 /**
@@ -222,17 +293,36 @@ void rpm_InputCapture_IT_callback(void)
 {
   rpm_CurrentCapture = MyTim->getCaptureCompare(rpm_channel);
   /* frequency computation */
-  if (rpm_CurrentCapture > rpm_LastCapture) {
-    rpm_Measured = input_freq * FREQ_TO_RPM / (rpm_CurrentCapture - rpm_LastCapture);
-  }
-  else if (rpm_CurrentCapture <= rpm_LastCapture) {
-    /* 0x1000 is max overflow value */
-    rpm_Measured = input_freq * FREQ_TO_RPM / (0x10000 + rpm_CurrentCapture - rpm_LastCapture);
-  }
+  uint32_t rpm = 0;
+
+  if (rpm_rolloverCompareCount < 2) {    //calculate rpm only when _LastCapture is valid (or <=1)
+
+    if (rpm_CurrentCapture > rpm_LastCapture) {
+      //rpm_Measured 
+      rpm = input_freq * FREQ_TO_RPM / (rpm_CurrentCapture - rpm_LastCapture);
+    } else { //if (rpm_CurrentCapture <= rpm_LastCapture) {   //the second condition is useless
+      /* 0x1000 is max overflow value */
+      //rpm_Measured 
+      rpm = input_freq * FREQ_TO_RPM / (0x10000 + rpm_CurrentCapture - rpm_LastCapture);
+    }
+
+    if (rpm <= RPM_MAX) {                 //check if the rpm we got makes sense - ignore if its way high
+      //calculate average from 4 last good measurements and rotate the history
+      rpm_Measured = (rpm + rpmhistory[0] + rpmhistory[1] + rpmhistory[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit
+      rpmhistory[2] = rpmhistory[1];
+      rpmhistory[1] = rpmhistory[0];
+      rpmhistory[0] = rpm;
+    } else {
+      rpm_Measured = -1;                  //signalize that current value doesnt make a sense (too high)
+    }
+    
+  } 
+    
   rpm_LastCapture = rpm_CurrentCapture;
   rpm_rolloverCompareCount = 0;
   
-  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flash the onboard LED to indicate we are alive
+//  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flip the onboard LED to indicate we are alive
+//  Serial.printf("\r\n%u\t%u\t%u\t%u\t%u", rpm_Measured, rpm, rpmhistory[0], rpmhistory[1], rpmhistory[2]); 
 }
 
 void hw_timer_rpm_duty_meter_init() {
@@ -614,11 +704,12 @@ void setup() {
   pinMode(ICV_INPUT, INPUT_ANALOG);
   pinMode(DUTY_INPUT, INPUT);
   pinMode(RPM_INPUT, INPUT);
-  pinMode(PA9, OUTPUT);               //testing signal
   analogWriteFrequency(100);          //100Hz
   analogWriteResolution(8);          //we have 16bit timers so use them
-  analogWrite(PA9, 50); //16% ------- 6553500 = 100%
-  //analogWrite(PA9, 11797); //18%
+  pinMode(PA9, OUTPUT);               //ICV PWM signal
+  analogWrite(PA9, 50);             //16% ------- 6553500 = 100%
+  pinMode(PB1, OUTPUT);             //test out
+  analogWrite(PB1, 127);
 
   //delay(10000);
 
@@ -654,9 +745,14 @@ void setup() {
   vref_value = analogRead(AVREF);
   
   //init hw-timer-duty-cycle-meter
+  rpmhistory[0]=0;
+  rpmhistory[1]=0;
+  rpmhistory[2]=0;
   hw_timer_rpm_duty_meter_init();
   pinMode(RPM_INPUT, INPUT);
-
+  SampleTime = 1000*65536 / (input_freq); // 1/freq*1000 [ms] = 1000/freq
+  SetTunings(2, 3, 0); //0.2, 0.1, 0
+  Serial.printf("sampletime: %ums = %uHz", SampleTime, input_freq / 65536);
   drawbasicscreen();
 }
 
