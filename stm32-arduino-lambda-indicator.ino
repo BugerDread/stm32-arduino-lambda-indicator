@@ -17,7 +17,7 @@
 #include <SPI.h>
 #include "mercedescut.h"
 
-// #define SDEBUG
+#define SDEBUG
 
 //constants
   //general
@@ -32,8 +32,8 @@
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 144; //36 DUTY and RPM meter share same timer T4, minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 30Hz
-  const uint8_t FREQ_TO_RPM = 30;     //1Hz = 15rpm
+  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 36; //36 DUTY and RPM meter share same timer T4, minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
+  const uint8_t FREQ_TO_RPM = 15;     //1Hz = 15rpm
   const uint16_t RPM_IDLE_MAX = 1200;
   const uint16_t RPM_MAX = 7000;
                                               
@@ -45,29 +45,29 @@
   const uint8_t DUTY_FREQ_HIGH = 110;
   
   //inputs
-  const uint16_t LAMBDA_INPUT = A0;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
-  const uint16_t BATT_INPUT = A1;     //battery voltage input
-  const uint16_t OVP_INPUT = A2;      //OVP voltage input
-  const uint16_t ICV_INPUT = A3;      //ICV voltage input
-  const uint16_t DUTY_INPUT =PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
+  const uint16_t LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
+  const uint16_t BATT_INPUT = A0;     //battery voltage input
+  const uint16_t OVP_INPUT = A1;      //OVP voltage input
+  const uint16_t ICV_INPUT = A2;      //ICV voltage input
+  const uint16_t DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
   const uint16_t RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
   //analog inputs calibration
   const uint16_t LAMBDA_CAL_IN = 629;
   const uint16_t LAMBDA_CAL_READ = 1870;
-  const uint16_t VBATT_CAL_IN = 4520;
-  const uint16_t VBATT_CAL_READ = 801;
-  const uint16_t OVP_CAL_IN = 4520;   //not calibrated yet
-  const uint16_t OVP_CAL_READ = 801;  //not calibrated yet
+  const uint16_t VBATT_CAL_IN = 12090;  //real input voltage (read by multimeter)
+  const uint16_t VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
+  const uint16_t OVP_CAL_IN = 11670;   //
+  const uint16_t OVP_CAL_READ = 2194;  //
   const uint16_t ICV_CAL_IN = 4520;   //not calibrated yet
   const uint16_t ICV_CAL_READ = 801;  //not calibrated yet
 
   //outputs
-  const uint16_t LED_LEAN2 = PB12;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
-  const uint16_t LED_LEAN1 = PB13;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
+  const uint16_t LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
+  const uint16_t LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
   const uint16_t LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
-  const uint16_t LED_RICH1 = PB15;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
-  const uint16_t LED_RICH2 = PA8;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
+  const uint16_t LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
+  const uint16_t LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
   const uint16_t LED_ONBOARD = PC13;  //LED on the bluepill board
 
 
@@ -190,6 +190,7 @@ void Rollover_IT_callback(void)
   //because if some of them are read in interrupt and some of them in main loop it results if wrong reading (usually 0)
   //most probably when there is one analogread() running, interrupt comes and another one is started
   //these all reagings takes < 1ms together
+  
   vref_value = analogRead(AVREF);
   lambda();
   battery_raw = analogRead(BATT_INPUT);   //here we read just raw values
@@ -593,7 +594,7 @@ void setup() {
   Serial.print(F("mV\r\n\r\nLCD init "));
 
   tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
-  tft.setRotation(1);
+  tft.setRotation(3);
   tft.fillScreen(ST77XX_BLACK);
   Serial.println(F("- DONE\r\nDrawing logo"));
   tft.drawRGBBitmap(26, 6, mblogo, 108, 108);
@@ -612,7 +613,7 @@ void setup() {
   pinMode(OVP_INPUT, INPUT_ANALOG);
   pinMode(ICV_INPUT, INPUT_ANALOG);
   pinMode(DUTY_INPUT, INPUT);
-  pinMode(RPM_INPUT, INPUT_PULLUP);
+  pinMode(RPM_INPUT, INPUT);
   pinMode(PA9, OUTPUT);               //testing signal
   analogWriteFrequency(100);          //100Hz
   analogWriteResolution(8);          //we have 16bit timers so use them
@@ -654,7 +655,7 @@ void setup() {
   
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
-  pinMode(RPM_INPUT, INPUT_PULLUP);
+  pinMode(RPM_INPUT, INPUT);
 
   drawbasicscreen();
 }
