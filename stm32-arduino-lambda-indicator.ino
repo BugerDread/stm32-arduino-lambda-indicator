@@ -6,6 +6,8 @@
 //USART support: disabled (no Serial support)
 //USB support: CDC (generic Serial supersede USART)
 
+// !!!if some variable is modified by ISR it MUST be declared as volatile
+
 //needed by hardware-timer-based duty-cycle measurement
 #if !defined(STM32_CORE_VERSION) || (STM32_CORE_VERSION  < 0x01090000)
 #error "Due to API change, this sketch is compatible with STM32_CORE_VERSION  >= 0x01090000"
@@ -27,13 +29,11 @@
   const uint16_t V_RICH1 = 700;       //rich mixture voltage [mV]
   const uint16_t V_RICH2 = 800;       //very rich mixture voltage [mV]
   const uint16_t CYCLE_DELAY = 1000;    //delay for each round [ms]
-  //const uint8_t N_AVG = 20;           //how many samples to average to show on serial
   const uint16_t V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 36; //36 DUTY and RPM meter share same timer T4, minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
-  const uint8_t FREQ_TO_RPM = 15;     //1Hz = 15rpm
+
   const uint16_t RPM_IDLE_MAX = 1200;
   const uint16_t RPM_MAX = 10000;
                                               
@@ -107,26 +107,27 @@
   const uint16_t FAIL_VAL_BGR_COLOR = ST77XX_RED;
   
 //global variables
-  uint16_t battery_raw, ovp_raw, icv_raw;
-  uint16_t lambda_voltage_avg, lambda_voltage, lambda_value, vref_value;
+  volatile uint16_t battery_raw, ovp_raw, icv_raw;
+  volatile uint16_t lambda_voltage, vref_value;
   uint16_t battery_voltage, battery_voltage_uncal;
   uint16_t ovp_voltage, ovp_voltage_uncal;
   uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
-  //uint32_t lambda_voltage_avg_sum ;
-  uint8_t i, t = 1;
-  unsigned long millis_pre, millis_post;
 
-//hw-timer-duty-cycle-meter
-  uint32_t channelRising, channelFalling;
-  volatile uint32_t FrequencyMeasured, DutycycleMeasured, LastPeriodCapture = 0, CurrentCapture, HighStateMeasured;
-  uint32_t input_freq = 0;
-  volatile uint32_t rolloverCompareCount = 0;
-  HardwareTimer *MyTim;
+//hw-timer for rpm and duty-cycle meter
+//rpm and duty-cycle meter shares the same timer (T4)
+  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 36;                                         //36 minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
+  const uint32_t PRM_DUTY_TIMER_IFREQ = SystemCoreClock / RPM_DUTY_HW_TIMER_PRESCALER;    //input freq of the timer
+  uint32_t duty_ch_rising, duty_ch_falling;
+  volatile uint32_t duty_freq_measured, duty_cycle_measured, duty_last_capture = 0, duty_capture, duty_highstate;
+  volatile uint32_t duty_rollover_count = 0;
+  HardwareTimer *rpm_duty_timer;                                                          //our HW timer
   
 //rpm-meter
+  const uint8_t FREQ_TO_RPM = 15;                       //1Hz = 15rpm if there are 4 pusles per rpm
   uint32_t rpm_channel;
-  volatile uint32_t rpm_Measured, rpm_LastCapture = 0, rpm_CurrentCapture;
-  volatile uint32_t rpm_rolloverCompareCount = 0;
+  volatile uint32_t rpm_measured, rpm_last_capture = 0, rpm_capture;
+  volatile uint32_t rpm_rollover_count = 0;
+  uint16_t rpm_history[3]; //history
 
 //LCD           MOSI MISO SCLK
   SPIClass SPI3(PB5, PB4, PB3);
@@ -137,122 +138,110 @@
   Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
 
 //PID
-  double Input, Output, Setpoint = 750;
-  double ITerm = 0;
-  double lastInput = 0;
-  double kp = 0;
-  double ki = 0;
-  double kd = 0;
-  uint16_t SampleTime;
-  const double outMin = 0;
-  const double outMax = 255;
-  bool inAuto = true;
-  #define MANUAL 0
-  #define AUTOMATIC 1
-  uint16_t rpmhistory[3]; //history
+  const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ; //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
+  const double pid_out_min = 0;    //needs to be set to ICV fully closed
+  const double pid_out_max = 255;
+  double pid_input, pid_output;
+  double pid_setpoint = 750;
+  double pid_iterm = 0;
+  double pid_lastinput = 0;
+  double pid_kp = 0;
+  double pid_ki = 0;
+  double pid_kd = 0;
 
-void Compute()
+void pid_compute()
 {     
-      //we need to filter the rpm_Measured to make sure it is sane:
-      //rpm_Measured == 0 = motor is not spinning or we cant measure such low rpms
-      //rpm_Measured == -1 = we probably got interference because we got rpm > RPM_MAX
-      //we will count failed passes and disable ICV control if sane signal not received for a while?
-      if (rpm_Measured == 0) {
-        //simply skip everything for now
-        return;
-      }
-
-      if (rpm_Measured == -1) {
-        //simply skip everything for now
-        return;
-      }
+      //we need to filter the rpm_measured to make sure it is sane:
+      //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
+      //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
+      pid_input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
-      Input = rpm_Measured;
+      if(pid_input == 0) {
+        //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
+        return;
+      }
 
       /*Compute all the working error variables*/
-      double error = Setpoint - Input;
-      ITerm+= (ki * error);
-      if(ITerm> outMax) ITerm= outMax;
-      else if(ITerm< outMin) ITerm= outMin;
-      double dInput = (Input - lastInput);
+      double error = pid_setpoint - pid_input;
+      pid_iterm += (pid_ki * error);
+      if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
+      else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
+      double dInput = (pid_input - pid_lastinput);
  
       /*Compute PID Output*/
-      Output = kp * error + ITerm- kd * dInput;
-      if(Output> outMax) Output = outMax;
-      else if(Output < outMin) Output = outMin;
+      pid_output = pid_kp * error + pid_iterm - pid_kd * dInput;
+      if(pid_output > pid_out_max) pid_output = pid_out_max;
+      else if(pid_output < pid_out_min) pid_output = pid_out_min;
+
+      //send output to output :D
+      analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
  
       /*Remember some variables for next time*/
-      lastInput = Input;
-//      lastTime = now;
-//
+      pid_lastinput = pid_input;
+
       Serial.print("\r\nRPM:\t");
-      Serial.print(Input);
+      Serial.print(pid_input);
       Serial.print(";\tError:\t");
       Serial.print(error);
-      Serial.print(";\tITerm:\t");
-      Serial.print(ITerm);
-      Serial.print(";\tOutput:\t");
-      Serial.print(Output);
+      Serial.print(";\tpid_iterm:\t");
+      Serial.print(pid_iterm);
+      Serial.print(";\tpid_output:\t");
+      Serial.print(pid_output);
 }
 
-void SetTunings(double Kp, double Ki, double Kd)
+void pid_set_tunings(double Kp, double Ki, double Kd)
 {
-  double SampleTimeInSec = ((double)SampleTime)/1000;
-   kp = Kp;
-   ki = Ki * SampleTimeInSec;
-   kd = Kd / SampleTimeInSec;
+  double SampleTimeInSec = ((double)pid_sample_time)/1000;
+   pid_kp = Kp;
+   pid_ki = Ki * SampleTimeInSec;
+   pid_kd = Kd / SampleTimeInSec;
 }
 
-  
-
-/**
-    @brief  Input capture interrupt callback : Compute frequency and dutycycle of input signal
-*/
-void TIMINPUT_Capture_Rising_IT_callback(void)
+void duty_it_capture_rising(void)
 {
-  CurrentCapture = MyTim->getCaptureCompare(channelRising);
+  duty_capture = rpm_duty_timer->getCaptureCompare(duty_ch_rising);
   /* frequency computation */
-  if (CurrentCapture > LastPeriodCapture)
+  if(duty_capture > duty_last_capture)
   {
-    FrequencyMeasured = input_freq / (CurrentCapture - LastPeriodCapture);
-    DutycycleMeasured = (HighStateMeasured * 100) / (CurrentCapture - LastPeriodCapture);
+    duty_freq_measured = PRM_DUTY_TIMER_IFREQ / (duty_capture - duty_last_capture);
+    duty_cycle_measured = (duty_highstate * 100) / (duty_capture - duty_last_capture);
   }
-  else if (CurrentCapture <= LastPeriodCapture)
+  else if(duty_capture <= duty_last_capture)
   {
     /* 0x1000 is max overflow value */
-    FrequencyMeasured = input_freq / (0x10000 + CurrentCapture - LastPeriodCapture);
-    DutycycleMeasured = (HighStateMeasured * 100) / (0x10000 + CurrentCapture - LastPeriodCapture); 
+    duty_freq_measured = PRM_DUTY_TIMER_IFREQ / (0x10000 + duty_capture - duty_last_capture);
+    duty_cycle_measured = (duty_highstate * 100) / (0x10000 + duty_capture - duty_last_capture); 
   }
 
-  DutycycleMeasured = 100 - DutycycleMeasured;  //we need to measure duration of "low level" => 100 - DutycycleMeasured
-  LastPeriodCapture = CurrentCapture;
-  rolloverCompareCount = 0;
+  duty_cycle_measured = 100 - duty_cycle_measured;  //we need to measure duration of "low level" => 100 - duty_cycle_measured
+  duty_last_capture = duty_capture;
+  duty_rollover_count = 0;
 }
 
 /* In case of timer rollover, frequency is to low to be measured set values to 0
    To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
-void Rollover_IT_callback(void)
+void rpm_duty_timer_it_rollover(void)
 {
   //this is called with about 30Hz frequency
   
-  rolloverCompareCount++;
+  duty_rollover_count++;
 
-  if (rolloverCompareCount > 1)
+  if(duty_rollover_count > 1)
   {
-    FrequencyMeasured = 0;
-    DutycycleMeasured = 0;
+    duty_freq_measured = 0;
+    duty_cycle_measured = 0;
   }
 
-  rpm_rolloverCompareCount++;
+  rpm_rollover_count++;
 
-  if (rpm_rolloverCompareCount >= 2)   //toto ceknout podle me mam byt > 1 [ses kokot, >= 2 a >1 je to same]
+  if(rpm_rollover_count >= 2)   //toto ceknout podle me mam byt > 1 [ses kokot, >= 2 a >1 je to same]
   {
-    rpm_Measured = 0;                 //mozna tady taky prumerovat nebo nejak ignorovat par chybejicich pulzu
-    rpm_rolloverCompareCount = 2;     //nene tady nic neprumerovat, v presuseni od inputu se prumeruji jen platne hodnoty, vynechane pusly se ignoruji
-    //v PID procesu pak dame neco jako ze hodnota kdyz rpm_Measured = 0 tak bud je to chyba ze nam upadl signal nebo nam stoji motor
+    rpm_measured = 0;                 //mozna tady taky prumerovat nebo nejak ignorovat par chybejicich pulzu
+    rpm_rollover_count = 2;     //nene tady nic neprumerovat, v presuseni od inputu se prumeruji jen platne hodnoty, vynechane pusly se ignoruji
+    //v PID procesu pak dame neco jako ze hodnota kdyz rpm_measured = 0 tak bud je to chyba ze nam upadl signal nebo nam stoji motor
     //pokud stoji nenadelame uz nic, pokud upadl signal tak zbesilym pridanim zbytecne proturuje motor
     //=> je nesmysl vytocit ICV na max, spis chvili ho drzet kde zrovna bylo (3s?) a pokud stale nic tak uplne vypnout do failsafe
-    //podobne kdyz bude rpm_Measured = -1 bude to znamenat ze nam jdou na vstup nesmysly (ruseni) a vychazi rpm > RPM_MAX
+    //podobne kdyz bude rpm_measured = -1 bude to znamenat ze nam jdou na vstup nesmysly (ruseni) a vychazi rpm > RPM_MAX
   }
   
   //read all analog values
@@ -266,98 +255,95 @@ void Rollover_IT_callback(void)
   ovp_raw =  analogRead(OVP_INPUT);       //we will calculate voltages when we need them (when is time to display them)
   icv_raw = analogRead(ICV_INPUT);        //it does not make sense to calculate these voltages every 1/30s and display them once
 
-  Compute(); //process pid
-  analogWrite(PA9, Output);               //send output to ICV - zmenit PA9 na konstantu
+  pid_compute(); //process pid
 }
 
 /**
     @brief  Input capture interrupt callback : Compute frequency and dutycycle of input signal
 */
-void TIMINPUT_Capture_Falling_IT_callback(void)
+void duty_it_capture_falling(void)
 {
   /* prepare DutyCycle computation */
-  CurrentCapture = MyTim->getCaptureCompare(channelFalling);
+  duty_capture = rpm_duty_timer->getCaptureCompare(duty_ch_falling);
 
-  if (CurrentCapture > LastPeriodCapture)
+  if(duty_capture > duty_last_capture)
   {
-    HighStateMeasured = CurrentCapture - LastPeriodCapture;
+    duty_highstate = duty_capture - duty_last_capture;
   }
-  else if (CurrentCapture <= LastPeriodCapture)
+  else if(duty_capture <= duty_last_capture)
   {
     /* 0x1000 is max overflow value */
-    HighStateMeasured = 0x10000 + CurrentCapture - LastPeriodCapture;
+    duty_highstate = 0x10000 + duty_capture - duty_last_capture;
   }
 }
 
-void rpm_InputCapture_IT_callback(void)
+void rpm_it_capture(void)
 {
-  rpm_CurrentCapture = MyTim->getCaptureCompare(rpm_channel);
+  rpm_capture = rpm_duty_timer->getCaptureCompare(rpm_channel);
   /* frequency computation */
   uint32_t rpm = 0;
 
-  if (rpm_rolloverCompareCount < 2) {    //calculate rpm only when _LastCapture is valid (or <=1)
+  if(rpm_rollover_count < 2) {    //calculate rpm only when _LastCapture is valid (or <=1)
 
-    if (rpm_CurrentCapture > rpm_LastCapture) {
-      //rpm_Measured 
-      rpm = input_freq * FREQ_TO_RPM / (rpm_CurrentCapture - rpm_LastCapture);
-    } else { //if (rpm_CurrentCapture <= rpm_LastCapture) {   //the second condition is useless
+    if(rpm_capture > rpm_last_capture) {
+      //rpm_measured 
+      rpm = PRM_DUTY_TIMER_IFREQ * FREQ_TO_RPM / (rpm_capture - rpm_last_capture);
+    } else { //if (rpm_capture <= rpm_last_capture) {   //the second condition is useless
       /* 0x1000 is max overflow value */
-      //rpm_Measured 
-      rpm = input_freq * FREQ_TO_RPM / (0x10000 + rpm_CurrentCapture - rpm_LastCapture);
+      //rpm_measured 
+      rpm = PRM_DUTY_TIMER_IFREQ * FREQ_TO_RPM / (0x10000 + rpm_capture - rpm_last_capture);
     }
 
-    if (rpm <= RPM_MAX) {                 //check if the rpm we got makes sense - ignore if its way high
+    if(rpm < RPM_MAX) {                 //check if the rpm we got makes sense - ignore if its way high (dont even update rpm_measured)
       //calculate average from 4 last good measurements and rotate the history
-      rpm_Measured = (rpm + rpmhistory[0] + rpmhistory[1] + rpmhistory[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit
-      rpmhistory[2] = rpmhistory[1];
-      rpmhistory[1] = rpmhistory[0];
-      rpmhistory[0] = rpm;
-    } else {
-      rpm_Measured = -1;                  //signalize that current value doesnt make a sense (too high)
-    }
+      rpm_measured = (rpm + rpm_history[0] + rpm_history[1] + rpm_history[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit
+      rpm_history[2] = rpm_history[1];
+      rpm_history[1] = rpm_history[0];
+      rpm_history[0] = rpm;
+    } 
     
   } 
     
-  rpm_LastCapture = rpm_CurrentCapture;
-  rpm_rolloverCompareCount = 0;
+  rpm_last_capture = rpm_capture;
+  rpm_rollover_count = 0;
   
 //  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flip the onboard LED to indicate we are alive
-//  Serial.printf("\r\n%u\t%u\t%u\t%u\t%u", rpm_Measured, rpm, rpmhistory[0], rpmhistory[1], rpmhistory[2]); 
+//  Serial.printf("\r\n%u\t%u\t%u\t%u\t%u", rpm_measured, rpm, rpm_history[0], rpm_history[1], rpm_history[2]); 
 }
 
 void hw_timer_rpm_duty_meter_init() {
-  // Automatically retrieve TIM instance and channelRising associated to pin
+  // Automatically retrieve TIM instance and duty_ch_rising associated to pin
   // This is used to be compatible with all STM32 series automatically.
   TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(DUTY_INPUT), PinMap_PWM);
   //selected pins for DUTY_INPUT PB9, PB7 and RPM_INPUT use the same timer T4 therefore another timer instance not needed / possible
   //cant use PB8 as RPM input because duty cycle measurement uses T4C3 also, therefore PB7 used (PB6 also works)
   //TIM_TypeDef *rpm_Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(pin), PinMap_PWM);  
-  channelRising = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(DUTY_INPUT), PinMap_PWM));
+  duty_ch_rising = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(DUTY_INPUT), PinMap_PWM));
   rpm_channel = STM_PIN_CHANNEL(pinmap_function(digitalPinToPinName(RPM_INPUT), PinMap_PWM));
 
-  // channelRisings come by pair for TIMER_INPUT_FREQ_DUTY_MEASUREMENT mode:
-  // channelRising1 is associated to channelFalling and channelRising3 is associated with channelRising4
-  switch (channelRising) {
+  // duty_ch_risings come by pair for TIMER_INPUT_FREQ_DUTY_MEASUREMENT mode:
+  // duty_ch_rising1 is associated to duty_ch_falling and duty_ch_rising3 is associated with duty_ch_rising4
+  switch (duty_ch_rising) {
     case 1:
-      channelFalling = 2;
+      duty_ch_falling = 2;
       break;
     case 2:
-      channelFalling = 1;
+      duty_ch_falling = 1;
       break;
     case 3:
-      channelFalling = 4;
+      duty_ch_falling = 4;
       break;
     case 4:
-      channelFalling = 3;
+      duty_ch_falling = 3;
       break;
   }
 
   // Instantiate HardwareTimer object. Thanks to 'new' instantiation, HardwareTimer is not destructed when setup() function is finished.
-  MyTim = new HardwareTimer(Instance);
+  rpm_duty_timer = new HardwareTimer(Instance);
 
   // Configure rising edge detection to measure frequency
-  MyTim->setMode(channelRising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, DUTY_INPUT);
-  MyTim->setMode(rpm_channel, TIMER_INPUT_CAPTURE_RISING, RPM_INPUT); //or _FALLING if want to detect the other edge
+  rpm_duty_timer->setMode(duty_ch_rising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, DUTY_INPUT);
+  rpm_duty_timer->setMode(rpm_channel, TIMER_INPUT_CAPTURE_RISING, RPM_INPUT); //or _FALLING if want to detect the other edge
 
   // With a PrescalerFactor = 1, the minimum frequency value to measure is : TIM counter clock / CCR MAX
   //  = (SystemCoreClock) / 65535
@@ -366,28 +352,25 @@ void hw_timer_rpm_duty_meter_init() {
   // The maximum frequency depends on processing of both interruptions and thus depend on board used
   // Example on Nucleo_L476RG with systemClock at 80MHz the interruptions processing is around 10 microseconds and thus Max frequency is around 100kHz
   //uint32_t PrescalerFactor = DUTY_HW_TIMER_PRESCALER;
-  MyTim->setPrescaleFactor(RPM_DUTY_HW_TIMER_PRESCALER);
-  MyTim->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
-  MyTim->attachInterrupt(channelRising, TIMINPUT_Capture_Rising_IT_callback);
-  MyTim->attachInterrupt(channelFalling, TIMINPUT_Capture_Falling_IT_callback);
-  MyTim->attachInterrupt(rpm_channel, rpm_InputCapture_IT_callback);
-  MyTim->attachInterrupt(Rollover_IT_callback);
+  rpm_duty_timer->setPrescaleFactor(RPM_DUTY_HW_TIMER_PRESCALER);
+  rpm_duty_timer->setOverflow(0x10000); // Max Period value to have the largest possible time to detect rising edge and avoid timer rollover
+  rpm_duty_timer->attachInterrupt(duty_ch_rising, duty_it_capture_rising);
+  rpm_duty_timer->attachInterrupt(duty_ch_falling, duty_it_capture_falling);
+  rpm_duty_timer->attachInterrupt(rpm_channel, rpm_it_capture);
+  rpm_duty_timer->attachInterrupt(rpm_duty_timer_it_rollover);
 
-  MyTim->resume();
-
-  // Compute this scale factor only once
-  input_freq = MyTim->getTimerClkFreq() / MyTim->getPrescaleFactor();
+  rpm_duty_timer->resume();
 }
 
 void lambda() {
-  lambda_value = analogRead(LAMBDA_INPUT);
-  lambda_voltage = ((((uint32_t)lambda_value * V_REFI) / vref_value ) * LAMBDA_CAL_IN ) / LAMBDA_CAL_READ;
-  //=> lambda_voltage * LAMBDA_CAL_READ / LAMBDA_CAL_IN * vref_value / V_REFI = lambda_value
-  //lambda_voltage_avg_sum += lambda_voltage;
-  lambda_voltage_avg = lambda_voltage;    //temp hack
+  //lambda_value = analogRead(LAMBDA_INPUT);
+  //lambda_voltage = ((uint32_t)lambda_value * V_REFI) / vref_value;                              //uncal
+  //Serial.printf("lambda uncal: %u\tvalue: %u\r\n", lambda_voltage, lambda_value);  
+  //lambda_voltage = ((uint32_t)lambda_voltage * LAMBDA_CAL_IN) / LAMBDA_CAL_READ;                //cal
+  lambda_voltage = ((uint32_t)analogRead(LAMBDA_INPUT) * V_REFI * LAMBDA_CAL_IN) / (vref_value * LAMBDA_CAL_READ);
 
   //control LEDz
-  if (lambda_voltage <= V_LEAN2) {
+  if(lambda_voltage <= V_LEAN2) {
     //very lean
     digitalWrite(LED_LEAN2, LOW);
     digitalWrite(LED_LEAN1, HIGH);
@@ -395,7 +378,7 @@ void lambda() {
     digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, HIGH);
     
-  } else if ((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
+  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
     //lean
     digitalWrite(LED_LEAN2, HIGH);
     digitalWrite(LED_LEAN1, LOW);
@@ -403,7 +386,7 @@ void lambda() {
     digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, HIGH);
     
-  } else if ((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
+  } else if((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
     //right
     digitalWrite(LED_LEAN2, HIGH);
     digitalWrite(LED_LEAN1, HIGH);
@@ -411,7 +394,7 @@ void lambda() {
     digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, HIGH);
     
-  } else if ((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
+  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
     //rich
     digitalWrite(LED_LEAN2, HIGH);
     digitalWrite(LED_LEAN1, HIGH);
@@ -419,7 +402,7 @@ void lambda() {
     digitalWrite(LED_RICH1, LOW);
     digitalWrite(LED_RICH2, HIGH);
     
-  } else if (V_RICH2 <= lambda_voltage) {
+  } else if(V_RICH2 <= lambda_voltage) {
     //very rich
     digitalWrite(LED_LEAN2, HIGH);
     digitalWrite(LED_LEAN1, HIGH);
@@ -453,7 +436,7 @@ void get_icv() {
   //ovp_voltage needs to be known
   icv_voltage_uncal = (((uint32_t)icv_raw * V_REFI) / vref_value);
   icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
-  if (ovp_voltage > icv_voltage_abs) { 
+  if(ovp_voltage > icv_voltage_abs) { 
     icv_voltage = ovp_voltage - icv_voltage_abs;
   } else {
     icv_voltage = 0;
@@ -490,33 +473,33 @@ void showvalues() {
   //lambda
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, LAMBDA_TXT_Y);
-  tft.printf("%umV", lambda_voltage_avg);
+  tft.printf("%umV", lambda_voltage);
   //spaces after to delete previous - total 6 chars, 2 used by "mV", one for first digit => 6-2-1=3
-  if (lambda_voltage_avg < 10) tft.print(" ");
-  if (lambda_voltage_avg < 100) tft.print(" ");
-  if (lambda_voltage_avg < 1000) tft.print(" ");
+  if (lambda_voltage < 10) tft.print(" ");
+  if (lambda_voltage < 100) tft.print(" ");
+  if (lambda_voltage < 1000) tft.print(" ");
     
-  if (lambda_voltage_avg <= V_LEAN2) {
+  if (lambda_voltage <= V_LEAN2) {
     //very lean
     tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
     tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
     tft.print(F("V-LEAN"));
-  } else if ((V_LEAN2 < lambda_voltage_avg) and (lambda_voltage_avg <= V_LEAN1)) {
+  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
     //lean
     tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
     tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
     tft.print(F(" LEAN "));
-  } else if ((V_LEAN1 < lambda_voltage_avg) and (lambda_voltage_avg < V_RICH1)) {
+  } else if((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
     //right
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
     tft.print(F(" GOOD "));
-  } else if ((V_RICH1 <= lambda_voltage_avg) and (lambda_voltage_avg < V_RICH2)) {
+  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
     //rich
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
     tft.print(F(" RICH "));
-  } else if (V_RICH2 <= lambda_voltage) {
+  } else if(V_RICH2 <= lambda_voltage) {
     //very rich
     tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
     tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
@@ -528,10 +511,10 @@ void showvalues() {
   tft.setCursor(VAL1_X, OVP_TXT_Y);
   //tft.print(F("0.0V"));
   tft.printf("%u.%u%uV", ovp_voltage / 1000, (ovp_voltage / 100) % 10, (ovp_voltage / 10) % 10);
-  if (ovp_voltage < 10000) tft.print(" ");
+  if(ovp_voltage < 10000) tft.print(" ");
   //status
   tft.setCursor(VAL2_X, OVP_TXT_Y);
-  if ((ovp_voltage + 500) >= battery_voltage) {
+  if((ovp_voltage + 500) >= battery_voltage) {
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.print(F("  OK  "));
   } else {
@@ -542,15 +525,15 @@ void showvalues() {
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, RPM_TXT_Y);
-  tft.printf("%-6u", rpm_Measured);
+  tft.printf("%-6u", rpm_measured);
   tft.setCursor(VAL2_X, RPM_TXT_Y);
-  if (rpm_Measured == 0) {
+  if(rpm_measured == 0) {
     tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
     tft.print(F(" STOP "));
-  } else if (rpm_Measured <= RPM_IDLE_MAX) {
+  } else if(rpm_measured <= RPM_IDLE_MAX) {
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.print(F(" IDLE "));
-  } else if (rpm_Measured <= RPM_MAX) {
+  } else if(rpm_measured <= RPM_MAX) {
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.print(F("  OK  "));
   } else {
@@ -562,19 +545,19 @@ void showvalues() {
   //duty
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, DUTY_TXT_Y);
-  tft.printf("%u%%", DutycycleMeasured);
-  if (DutycycleMeasured < 100) tft.print(" ");
-  if (DutycycleMeasured < 10) tft.print(" ");
+  tft.printf("%u%%", duty_cycle_measured);
+  if(duty_cycle_measured < 100) tft.print(" ");
+  if(duty_cycle_measured < 10) tft.print(" ");
   //status
   tft.setCursor(VAL2_X, DUTY_TXT_Y);
-  if ((DutycycleMeasured > DUTY_FAIL_HIGH) or (DutycycleMeasured < DUTY_FAIL_LOW)) {
+  if ((duty_cycle_measured > DUTY_FAIL_HIGH) or (duty_cycle_measured < DUTY_FAIL_LOW)) {
     tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
     tft.printf(F(" FAIL ")); 
-  } else if ((FrequencyMeasured > DUTY_FREQ_HIGH) or (FrequencyMeasured < DUTY_FREQ_LOW)) {
+  } else if((duty_freq_measured > DUTY_FREQ_HIGH) or (duty_freq_measured < DUTY_FREQ_LOW)) {
     //bad freq, should be 100Hz
     tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
     tft.printf(F(" FREQ "));
-  } else if ((DutycycleMeasured >= DUTY_WARN_HIGH) or (DutycycleMeasured <= DUTY_WARN_LOW)) {
+  } else if((duty_cycle_measured >= DUTY_WARN_HIGH) or (duty_cycle_measured <= DUTY_WARN_LOW)) {
     tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
     tft.printf(F(" WARN "));
   } else {
@@ -587,9 +570,9 @@ void showvalues() {
   tft.setCursor(VAL1_X, ICV_TXT_Y);
   //tft.print(F("0.0V")); 
   tft.printf("%u.%u%uV", icv_voltage / 1000, (icv_voltage / 100) % 10, (icv_voltage / 10) % 10);
-  if (icv_voltage < 10000) tft.print(" ");
+  if(icv_voltage < 10000) tft.print(" ");
   tft.setCursor(VAL2_X, ICV_TXT_Y);
-  if (icv_voltage >= ICV_VOLTAGE_MIN) {
+  if(icv_voltage >= ICV_VOLTAGE_MIN) {
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.print(F("  OK  "));
   } else {
@@ -706,12 +689,11 @@ void setup() {
   pinMode(RPM_INPUT, INPUT);
   analogWriteFrequency(100);          //100Hz
   analogWriteResolution(8);          //we have 16bit timers so use them
-  pinMode(PA9, OUTPUT);               //ICV PWM signal
-  analogWrite(PA9, 50);             //16% ------- 6553500 = 100%
-  pinMode(PB1, OUTPUT);             //test out
+  pinMode(ICV_PWM_OUT, OUTPUT);               //ICV PWM signal
+  analogWrite(ICV_PWM_OUT, 127);             //16% ------- 6553500 = 100%
+  
+  pinMode(PB1, OUTPUT);             //debug test out - to be removed
   analogWrite(PB1, 127);
-
-  //delay(10000);
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
@@ -745,23 +727,17 @@ void setup() {
   vref_value = analogRead(AVREF);
   
   //init hw-timer-duty-cycle-meter
-  rpmhistory[0]=0;
-  rpmhistory[1]=0;
-  rpmhistory[2]=0;
+  rpm_history[0]=0;
+  rpm_history[1]=0;
+  rpm_history[2]=0;
   hw_timer_rpm_duty_meter_init();
   pinMode(RPM_INPUT, INPUT);
-  SampleTime = 1000*65536 / (input_freq); // 1/freq*1000 [ms] = 1000/freq
-  SetTunings(2, 3, 0); //0.2, 0.1, 0
-  Serial.printf("sampletime: %ums = %uHz", SampleTime, input_freq / 65536);
+  pid_set_tunings(2, 3, 0); //0.2, 0.1, 0
+  Serial.printf("sampletime: %ums = %uHz", pid_sample_time, PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
 }
 
 void loop() {
-//  lambda_voltage_avg_sum = 0;
-  //
-  
-  //lambda_voltage_avg = lambda_voltage_avg_sum / N_AVG;
-  //Serial.printf(" - lambda voltage avg: %umV\r\n", lambda_voltage_avg);
   get_battery();
   get_ovp();
   get_icv();
@@ -770,8 +746,8 @@ void loop() {
   
   delay(CYCLE_DELAY);
   
-  //Serial.print((String)"Frequency = " + FrequencyMeasured);
-  //Serial.println((String)"    Dutycycle = " + DutycycleMeasured);
-  //Serial.println((String)"RPM Frequency = " + rpm_Measured);
+  //Serial.print((String)"Frequency = " + duty_freq_measured);
+  //Serial.println((String)"    Dutycycle = " + duty_cycle_measured);
+  //Serial.println((String)"RPM Frequency = " + rpm_measured);
   
 }
