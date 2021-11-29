@@ -6,6 +6,7 @@
 //USART support: disabled (no Serial support)
 //USB support: CDC (generic Serial supersede USART)
 //C Runtime: Newlib Nano
+//Optimize: -O2 + LTO
 
 // !!!if some variable is modified by ISR it MUST be declared as volatile
 
@@ -17,72 +18,73 @@
 //#define SDEBUG
 
 //constants
+//it does not 
   //general
-  const uint16_t  V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
-  const uint16_t  V_LEAN2 = 100;       //very lean mixture voltage [mV]
-  const uint16_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
-  const uint16_t  V_RICH1 = 700;       //rich mixture voltage [mV]
-  const uint16_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
-  const uint16_t  CYCLE_DELAY = 1000;    //delay for each round [ms]
-  const uint16_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
-  const uint16_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
-  const uint16_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
-  const uint16_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint8_t   ICV_PWM_BITS = 8;     //number of bits of ICV PWM
-  const uint16_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
-  const uint8_t   ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
-  const uint16_t  ICV_PWM_MIN = 0;          //minimum ICV PWM out during regulation (to skip initial 20% open wo power)
-  const uint16_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
+  const uint32_t  V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
+  const uint32_t  V_LEAN2 = 100;       //very lean mixture voltage [mV]
+  const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
+  const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
+  const uint32_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
+  const uint32_t  CYCLE_DELAY = 1000;    //delay for each round [ms]
+  const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
+  const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
+  const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
+  const uint32_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
+  const uint32_t   ICV_PWM_BITS = 8;     //number of bits of ICV PWM
+  const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
+  const uint32_t   ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
+  const uint32_t  ICV_PWM_MIN = 0;          //minimum ICV PWM out during regulation (to skip initial 20% open wo power)
+  const uint32_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
 
-  const uint16_t RPM_IDLE = 600;
-  const uint16_t RPM_IDLE_MAX = 1200;
-  const uint16_t RPM_MAX = 10000;
+  const uint32_t RPM_IDLE = 600;
+  const uint32_t RPM_IDLE_MAX = 1200;
+  const uint32_t RPM_MAX = 10000;
                                               
-  const uint8_t DUTY_FAIL_LOW = 10;
-  const uint8_t DUTY_FAIL_HIGH = 90;
-  const uint8_t DUTY_WARN_LOW = 30;
-  const uint8_t DUTY_WARN_HIGH = 70;
-  const uint8_t DUTY_FREQ_LOW = 90;
-  const uint8_t DUTY_FREQ_HIGH = 110;
+  const uint32_t DUTY_FAIL_LOW = 10;
+  const uint32_t DUTY_FAIL_HIGH = 90;
+  const uint32_t DUTY_WARN_LOW = 30;
+  const uint32_t DUTY_WARN_HIGH = 70;
+  const uint32_t DUTY_FREQ_LOW = 90;
+  const uint32_t DUTY_FREQ_HIGH = 110;
   
   //inputs
-  const uint16_t LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
-  const uint16_t BATT_INPUT = A0;     //battery voltage input
-  const uint16_t OVP_INPUT = A1;      //OVP voltage input
-  const uint16_t ICV_INPUT = A2;      //ICV voltage input
-  const uint16_t DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
-  const uint16_t RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
+  const uint32_t LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
+  const uint32_t BATT_INPUT = A0;     //battery voltage input
+  const uint32_t OVP_INPUT = A1;      //OVP voltage input
+  const uint32_t ICV_INPUT = A2;      //ICV voltage input
+  const uint32_t DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
+  const uint32_t RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
   //analog inputs calibration
-  const uint16_t LAMBDA_CAL_IN = 629;
-  const uint16_t LAMBDA_CAL_READ = 1870;
-  const uint16_t VBATT_CAL_IN = 12090;  //real input voltage (read by multimeter)
-  const uint16_t VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
-  const uint16_t OVP_CAL_IN = 11670;   //
-  const uint16_t OVP_CAL_READ = 2194;  //
-  const uint16_t ICV_CAL_IN = 4520;   //not calibrated yet
-  const uint16_t ICV_CAL_READ = 801;  //not calibrated yet
+  const uint32_t LAMBDA_CAL_IN = 629;
+  const uint32_t LAMBDA_CAL_READ = 1870;
+  const uint32_t VBATT_CAL_IN = 12090;  //real input voltage (read by multimeter)
+  const uint32_t VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
+  const uint32_t OVP_CAL_IN = 11670;   //
+  const uint32_t OVP_CAL_READ = 2194;  //
+  const uint32_t ICV_CAL_IN = 4520;   //not calibrated yet
+  const uint32_t ICV_CAL_READ = 801;  //not calibrated yet
 
   //outputs
-  const uint16_t LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
-  const uint16_t LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
-  const uint16_t LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
-  const uint16_t LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
-  const uint16_t LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
-  const uint16_t LED_ONBOARD = PC13;  //LED on the bluepill board
-  const uint16_t ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
+  const uint32_t LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
+  const uint32_t LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
+  const uint32_t LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
+  const uint32_t LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
+  const uint32_t LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
+  const uint32_t LED_ONBOARD = PC13;  //LED on the bluepill board
+  const uint32_t ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
 
 //global variables
-  uint16_t battery_voltage, battery_voltage_uncal;
-  uint16_t ovp_voltage, ovp_voltage_uncal;
-  uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
+  uint32_t battery_voltage, battery_voltage_uncal;
+  uint32_t ovp_voltage, ovp_voltage_uncal;
+  uint32_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
   
 //global variables used in interrupts (needs to be volatile)
-  volatile uint16_t battery_raw, ovp_raw, icv_raw, vref_value, lambda_voltage;
+  volatile uint32_t battery_raw, ovp_raw, icv_raw, vref_value, lambda_voltage;
 
 //hw-timer for rpm and duty-cycle meter
 //rpm and duty-cycle meter shares the same timer (T4)
-  const uint8_t RPM_DUTY_HW_TIMER_PRESCALER = 36;                                         //36 minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
+  const uint32_t RPM_DUTY_HW_TIMER_PRESCALER = 36;                                         //36 minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
   const uint32_t PRM_DUTY_TIMER_IFREQ = SystemCoreClock / RPM_DUTY_HW_TIMER_PRESCALER;    //input freq of the timer
   uint32_t duty_ch_rising, duty_ch_falling;
   volatile uint32_t duty_freq_measured, duty_cycle_measured, duty_last_capture = 0, duty_capture, duty_highstate;
@@ -90,18 +92,19 @@
   HardwareTimer *rpm_duty_timer;                                                          //our HW timer
   
 //rpm-meter
-  const uint8_t FREQ_TO_RPM = 15;                       //1Hz = 15rpm if there are 4 pusles per rpm
+  const uint32_t FREQ_TO_RPM = 15;                       //1Hz = 15rpm if there are 4 pusles per rpm
   uint32_t rpm_channel;
   volatile uint32_t rpm_measured, rpm_last_capture = 0, rpm_capture;
   volatile uint32_t rpm_rollover_count = 0;
-  uint16_t rpm_history[3]; //history
+  uint32_t rpm_history[3]; //history
 
 //PID
   //const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ;     //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
   const double pid_sample_time_s = (double)65536 / PRM_DUTY_TIMER_IFREQ;   //time period [in s] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) = 65536 / PRM_DUTY_TIMER_IFREQ;
   //const double pid_out_min = 0;    //needs to be set to ICV fully closed
   //const double pid_out_max = 255;
-  volatile uint8_t pid_output;      //this variable needs to be able to hold values in range pid_out_min .. pid_out_max
+  volatile uint32_t pid_output;      //this variable needs to be able to hold values in range pid_out_min .. pid_out_max
+  volatile uint32_t pid_debug_cnt = 0;
   double pid_setpoint = RPM_IDLE;
   double pid_iterm = 0;
   double pid_lastinput = 0;
@@ -116,10 +119,10 @@ void pid_compute()
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
       double input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
-      if(input == 0) {
-        //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
-        return;
-      }
+//      if(input == 0) {
+//        //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
+//        return;
+//      }
 
       /*Compute all the working error variables*/
       double error = pid_setpoint - input;
@@ -141,7 +144,10 @@ void pid_compute()
       /*Remember some variables for next time*/
       pid_lastinput = input;
 
-      Serial.printf("RPM: %-5u ERR: %-5d OUT: %u\r\n", rpm_measured, (int32_t)error, pid_output);
+      if (++pid_debug_cnt >= 10) {
+        Serial.printf("RPM: %-5u ERR: %-5d OUT: %u\r\n", rpm_measured, (int32_t)error, pid_output);
+        pid_debug_cnt = 0;
+      }
 }
 
 void pid_set_tunings(double Kp, double Ki, double Kd)
@@ -474,7 +480,7 @@ void setup() {
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
   pid_set_tunings(2, 3, 0); //0.2, 0.1, 0
-  Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint16_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
+  Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
 }
 
@@ -482,8 +488,8 @@ void loop() {
   get_battery();
   get_ovp();
   get_icv();
-  
+
   showvalues();
-  
+ 
   delay(CYCLE_DELAY);
 }

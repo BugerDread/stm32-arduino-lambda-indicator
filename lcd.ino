@@ -1,4 +1,11 @@
-//arduino reads .ino files in 
+//optimizations vs LCD speed
+//opt     LCDinit LCDupdate
+//Os      2107ms  222ms (default)
+//Os+LTO  1714ms  134ms
+//O2      2010ms  200ms
+//O2+LTO  1649ms  119ms <=
+//O3      2004ms  199ms   
+//O3+LTO  1630ms  113ms
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
@@ -50,6 +57,7 @@
   Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
 
 void lcd_init() {
+  uint32_t m1 = millis();
   tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
   tft.setRotation(3);
   tft.fillScreen(ST77XX_BLACK);
@@ -59,7 +67,8 @@ void lcd_init() {
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_BLUE);
   tft.print(F("BugerDread 2021 ver 0.01"));
-  Serial.println(F("- DONE\r\n"));  
+  uint32_t m2 = millis();
+  Serial.printf(F("LCD init took %ums\r\n"), m2 - m1);  
 }
 
 void drawbasicscreen() {
