@@ -18,7 +18,7 @@
 //#define SDEBUG
 
 //constants
-//it does not 
+//it does not make a sense to make integers smaller than 32b
   //general
   const uint32_t  V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
   const uint32_t  V_LEAN2 = 100;       //very lean mixture voltage [mV]
@@ -30,49 +30,49 @@
   const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
   const uint32_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint32_t   ICV_PWM_BITS = 8;     //number of bits of ICV PWM
+  const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
-  const uint32_t   ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
+  const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
   const uint32_t  ICV_PWM_MIN = 0;          //minimum ICV PWM out during regulation (to skip initial 20% open wo power)
   const uint32_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
 
-  const uint32_t RPM_IDLE = 600;
-  const uint32_t RPM_IDLE_MAX = 1200;
-  const uint32_t RPM_MAX = 10000;
+  const uint32_t  RPM_IDLE = 600;
+  const uint32_t  RPM_IDLE_MAX = 1200;
+  const uint32_t  RPM_MAX = 10000;
                                               
-  const uint32_t DUTY_FAIL_LOW = 10;
-  const uint32_t DUTY_FAIL_HIGH = 90;
-  const uint32_t DUTY_WARN_LOW = 30;
-  const uint32_t DUTY_WARN_HIGH = 70;
-  const uint32_t DUTY_FREQ_LOW = 90;
-  const uint32_t DUTY_FREQ_HIGH = 110;
+  const uint32_t  DUTY_FAIL_LOW = 10;
+  const uint32_t  DUTY_FAIL_HIGH = 90;
+  const uint32_t  DUTY_WARN_LOW = 30;
+  const uint32_t  DUTY_WARN_HIGH = 70;
+  const uint32_t  DUTY_FREQ_LOW = 90;
+  const uint32_t  DUTY_FREQ_HIGH = 110;
   
   //inputs
-  const uint32_t LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
-  const uint32_t BATT_INPUT = A0;     //battery voltage input
-  const uint32_t OVP_INPUT = A1;      //OVP voltage input
-  const uint32_t ICV_INPUT = A2;      //ICV voltage input
-  const uint32_t DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
-  const uint32_t RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
+  const uint32_t  LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
+  const uint32_t  BATT_INPUT = A0;     //battery voltage input
+  const uint32_t  OVP_INPUT = A1;      //OVP voltage input
+  const uint32_t  ICV_INPUT = A2;      //ICV voltage input
+  const uint32_t  DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
+  const uint32_t  RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
   //analog inputs calibration
-  const uint32_t LAMBDA_CAL_IN = 629;
-  const uint32_t LAMBDA_CAL_READ = 1870;
-  const uint32_t VBATT_CAL_IN = 12090;  //real input voltage (read by multimeter)
-  const uint32_t VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
-  const uint32_t OVP_CAL_IN = 11670;   //
-  const uint32_t OVP_CAL_READ = 2194;  //
-  const uint32_t ICV_CAL_IN = 4520;   //not calibrated yet
-  const uint32_t ICV_CAL_READ = 801;  //not calibrated yet
+  const uint32_t  LAMBDA_CAL_IN = 629;
+  const uint32_t  LAMBDA_CAL_READ = 1870;
+  const uint32_t  VBATT_CAL_IN = 12090;  //real input voltage (read by multimeter)
+  const uint32_t  VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
+  const uint32_t  OVP_CAL_IN = 11670;   //
+  const uint32_t  OVP_CAL_READ = 2194;  //
+  const uint32_t  ICV_CAL_IN = 4520;   //not calibrated yet
+  const uint32_t  ICV_CAL_READ = 801;  //not calibrated yet
 
   //outputs
-  const uint32_t LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
-  const uint32_t LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
-  const uint32_t LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
-  const uint32_t LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
-  const uint32_t LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
-  const uint32_t LED_ONBOARD = PC13;  //LED on the bluepill board
-  const uint32_t ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
+  const uint32_t  LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
+  const uint32_t  LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
+  const uint32_t  LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
+  const uint32_t  LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
+  const uint32_t  LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
+  const uint32_t  LED_ONBOARD = PC13;  //LED on the bluepill board
+  const uint32_t  ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
 
 //global variables
   uint32_t battery_voltage, battery_voltage_uncal;
