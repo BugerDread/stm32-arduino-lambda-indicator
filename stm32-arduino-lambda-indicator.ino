@@ -5,6 +5,7 @@
 //board: buepillF103CB (or C8 with 128k)
 //USART support: disabled (no Serial support)
 //USB support: CDC (generic Serial supersede USART)
+//C Runtime: Newlib Nano
 
 // !!!if some variable is modified by ISR it MUST be declared as volatile
 
@@ -17,17 +18,23 @@
 
 //constants
   //general
-  const uint16_t V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
-  const uint16_t V_LEAN2 = 100;       //very lean mixture voltage [mV]
-  const uint16_t V_LEAN1 = 200;       //lean mixture voltage [mV]
-  const uint16_t V_RICH1 = 700;       //rich mixture voltage [mV]
-  const uint16_t V_RICH2 = 800;       //very rich mixture voltage [mV]
-  const uint16_t CYCLE_DELAY = 1000;    //delay for each round [ms]
-  const uint16_t V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
-  const uint16_t V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
-  const uint16_t V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
-  const uint16_t ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
+  const uint16_t  V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
+  const uint16_t  V_LEAN2 = 100;       //very lean mixture voltage [mV]
+  const uint16_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
+  const uint16_t  V_RICH1 = 700;       //rich mixture voltage [mV]
+  const uint16_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
+  const uint16_t  CYCLE_DELAY = 1000;    //delay for each round [ms]
+  const uint16_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
+  const uint16_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
+  const uint16_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
+  const uint16_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
+  const uint8_t   ICV_PWM_BITS = 8;     //number of bits of ICV PWM
+  const uint16_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
+  const uint8_t   ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
+  const uint16_t  ICV_PWM_MIN = 0;          //minimum ICV PWM out during regulation (to skip initial 20% open wo power)
+  const uint16_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
 
+  const uint16_t RPM_IDLE = 600;
   const uint16_t RPM_IDLE_MAX = 1200;
   const uint16_t RPM_MAX = 10000;
                                               
@@ -90,11 +97,12 @@
   uint16_t rpm_history[3]; //history
 
 //PID
-  const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ; //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
-  const double pid_out_min = 0;    //needs to be set to ICV fully closed
-  const double pid_out_max = 255;
-  volatile double pid_output;
-  double pid_setpoint = 600;
+  //const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ;     //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
+  const double pid_sample_time_s = (double)65536 / PRM_DUTY_TIMER_IFREQ;   //time period [in s] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) = 65536 / PRM_DUTY_TIMER_IFREQ;
+  //const double pid_out_min = 0;    //needs to be set to ICV fully closed
+  //const double pid_out_max = 255;
+  volatile uint8_t pid_output;      //this variable needs to be able to hold values in range pid_out_min .. pid_out_max
+  double pid_setpoint = RPM_IDLE;
   double pid_iterm = 0;
   double pid_lastinput = 0;
   double pid_kp = 0;
@@ -106,47 +114,41 @@ void pid_compute()
       //we need to filter the rpm_measured to make sure it is sane:
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
-      double pid_input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
+      double input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
-      if(pid_input == 0) {
+      if(input == 0) {
         //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
         return;
       }
 
       /*Compute all the working error variables*/
-      double error = pid_setpoint - pid_input;
+      double error = pid_setpoint - input;
       pid_iterm += (pid_ki * error);
-      if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
-      else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
-      double dInput = (pid_input - pid_lastinput);
+      if(pid_iterm > ICV_PWM_MAX) pid_iterm = ICV_PWM_MAX;
+      else if (pid_iterm < ICV_PWM_MIN) pid_iterm = ICV_PWM_MIN;
+      double dInput = (input - pid_lastinput);
  
       /*Compute PID Output*/
-      pid_output = pid_kp * error + pid_iterm - pid_kd * dInput;
-      if(pid_output > pid_out_max) pid_output = pid_out_max;
-      else if(pid_output < pid_out_min) pid_output = pid_out_min;
+      double output = pid_kp * error + pid_iterm - pid_kd * dInput;
+      if(output > ICV_PWM_MAX) output = ICV_PWM_MAX;
+      else if(output < ICV_PWM_MIN) output = ICV_PWM_MIN;
+      //now we have the result computed
+      pid_output = output;
 
       //send output to output :D
       analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
  
       /*Remember some variables for next time*/
-      pid_lastinput = pid_input;
+      pid_lastinput = input;
 
-      Serial.print("\r\nRPM:\t");
-      Serial.print(pid_input);
-      Serial.print(";\tError:\t");
-      Serial.print(error);
-      Serial.print(";\tpid_iterm:\t");
-      Serial.print(pid_iterm);
-      Serial.print(";\tpid_output:\t");
-      Serial.print(pid_output);
+      Serial.printf("RPM: %-5u ERR: %-5d OUT: %u\r\n", rpm_measured, (int32_t)error, pid_output);
 }
 
 void pid_set_tunings(double Kp, double Ki, double Kd)
 {
-  double SampleTimeInSec = ((double)pid_sample_time)/1000;
    pid_kp = Kp;
-   pid_ki = Ki * SampleTimeInSec;
-   pid_kd = Kd / SampleTimeInSec;
+   pid_ki = Ki * pid_sample_time_s;
+   pid_kd = Kd / pid_sample_time_s;
 }
 
 void duty_it_capture_rising(void)
@@ -405,7 +407,6 @@ void get_icv() {
 }
 
 void setup() {
-  // initialize serial communications at 9600 bps:
   Serial.begin(115200);
   //while (!Serial);                  //need to be removed, otherwise will not run WO PC :D
   Serial.print(F("\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\nConfiguration\r\n=============\r\nLED update delay: "));
@@ -434,13 +435,10 @@ void setup() {
   pinMode(ICV_INPUT, INPUT_ANALOG);
   pinMode(DUTY_INPUT, INPUT);
   pinMode(RPM_INPUT, INPUT);
-  analogWriteFrequency(100);          //100Hz
-  analogWriteResolution(8);          //we have 16bit timers so use them
+  analogWriteFrequency(ICV_PWM_FREQ);          //100Hz
+  analogWriteResolution(ICV_PWM_BITS);          //we have 16bit timers so use them
   pinMode(ICV_PWM_OUT, OUTPUT);               //ICV PWM signal
-  analogWrite(ICV_PWM_OUT, 127);             //16% ------- 6553500 = 100%
-  
-  pinMode(PB1, OUTPUT);             //debug test out - to be removed
-  analogWrite(PB1, 127);
+  analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);             //16% ------- 6553500 = 100%
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
@@ -475,9 +473,8 @@ void setup() {
   
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
-  //pinMode(RPM_INPUT, INPUT_PULLUP); //timer init sets the pin to INPUT, when pullup is needed it needs to be changed here again
   pid_set_tunings(2, 3, 0); //0.2, 0.1, 0
-  Serial.printf("sampletime: %ums = %uHz", pid_sample_time, PRM_DUTY_TIMER_IFREQ / 65536);
+  Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint16_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
 }
 
@@ -489,9 +486,4 @@ void loop() {
   showvalues();
   
   delay(CYCLE_DELAY);
-  
-  //Serial.print((String)"Frequency = " + duty_freq_measured);
-  //Serial.println((String)"    Dutycycle = " + duty_cycle_measured);
-  //Serial.println((String)"RPM Frequency = " + rpm_measured);
-  
 }
