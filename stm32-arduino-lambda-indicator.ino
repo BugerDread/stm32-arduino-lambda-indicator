@@ -13,12 +13,6 @@
 #error "Due to API change, this sketch is compatible with STM32_CORE_VERSION  >= 0x01090000"
 #endif
 
-//includes
-#include <Adafruit_GFX.h>    // Core graphics library
-#include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
-#include <SPI.h>
-#include "mercedescut.h"
-
 //#define SDEBUG
 
 //constants
@@ -71,47 +65,13 @@
   const uint16_t LED_ONBOARD = PC13;  //LED on the bluepill board
   const uint16_t ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
 
-  //menu
-  const uint8_t TEXT_W = 5;
-  const uint8_t TEXT_H = 7;
-  const uint8_t SPACER = 4;
-  const uint16_t TXT_PARAM_COLOR = ST77XX_YELLOW;
-  const uint16_t TXT_VAL_COLOR = ST77XX_GREEN;
-  const uint8_t BATTERY_TXT_Y = 25;
-  const uint8_t BATTERY_LINE_Y = BATTERY_TXT_Y + TEXT_H + SPACER;
-  const uint8_t LAMBDA_TXT_Y = BATTERY_LINE_Y + SPACER;
-  const uint8_t LAMBDA_LINE_Y = LAMBDA_TXT_Y + TEXT_H + SPACER;
-  const uint8_t OVP_TXT_Y = LAMBDA_LINE_Y + SPACER;
-  const uint8_t OVP_LINE_Y = OVP_TXT_Y + TEXT_H + SPACER;
-  const uint8_t RPM_TXT_Y = OVP_LINE_Y + SPACER;
-  const uint8_t RPM_LINE_Y = RPM_TXT_Y + TEXT_H + SPACER;
-  const uint8_t DUTY_TXT_Y = RPM_LINE_Y + SPACER;
-  const uint8_t DUTY_LINE_Y = DUTY_TXT_Y + TEXT_H + SPACER;
-  const uint8_t ICV_TXT_Y = DUTY_LINE_Y + SPACER;
-  const uint8_t ICV_LINE_Y = ICV_TXT_Y + TEXT_H + SPACER;
-  const uint8_t LPG_TXT_Y = ICV_LINE_Y + SPACER;
-  const uint8_t LPG_LINE_Y = LPG_TXT_Y + TEXT_H + SPACER;
-  const uint8_t TXT_X = 0;
-  const uint8_t LINE_X = 0;
-  const uint8_t LINE_LEN = 160;
-  const uint16_t LINE_COLOR = 0x528A;
-  const uint16_t BACKGROUND_COLOR = ST77XX_BLACK;
-  const uint16_t HEADER_COLOR = ST77XX_BLUE;
-  const uint8_t VAL1_X = 80;
-  const uint8_t VAL2_X = 120;
-  const uint16_t GOOD_VAL_TXT_COLOR = ST77XX_BLACK;
-  const uint16_t WARN_VAL_TXT_COLOR = ST77XX_BLACK;
-  const uint16_t FAIL_VAL_TXT_COLOR = ST77XX_BLACK;
-  const uint16_t GOOD_VAL_BGR_COLOR = ST77XX_GREEN;
-  const uint16_t WARN_VAL_BGR_COLOR = ST77XX_YELLOW;
-  const uint16_t FAIL_VAL_BGR_COLOR = ST77XX_RED;
-  
 //global variables
-  volatile uint16_t battery_raw, ovp_raw, icv_raw;
-  volatile uint16_t lambda_voltage, vref_value;
   uint16_t battery_voltage, battery_voltage_uncal;
   uint16_t ovp_voltage, ovp_voltage_uncal;
   uint16_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
+  
+//global variables used in interrupts (needs to be volatile)
+  volatile uint16_t battery_raw, ovp_raw, icv_raw, vref_value, lambda_voltage;
 
 //hw-timer for rpm and duty-cycle meter
 //rpm and duty-cycle meter shares the same timer (T4)
@@ -129,20 +89,12 @@
   volatile uint32_t rpm_rollover_count = 0;
   uint16_t rpm_history[3]; //history
 
-//LCD           MOSI MISO SCLK
-  SPIClass SPI3(PB5, PB4, PB3);
-  const uint16_t TFT_CS = PA15;
-  const uint16_t TFT_RST = PB6;      //PB11; ??and PB6 as RST
-  const uint16_t TFT_DC = PB8;       //PB10; ??can we use MISO (PB4) for this as MISO is not used (no out from display to STM)?? - NOPE
-  //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
-  Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
-
 //PID
   const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ; //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
   const double pid_out_min = 0;    //needs to be set to ICV fully closed
   const double pid_out_max = 255;
-  double pid_input, pid_output;
-  double pid_setpoint = 750;
+  volatile double pid_output;
+  double pid_setpoint = 600;
   double pid_iterm = 0;
   double pid_lastinput = 0;
   double pid_kp = 0;
@@ -154,7 +106,7 @@ void pid_compute()
       //we need to filter the rpm_measured to make sure it is sane:
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
-      pid_input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
+      double pid_input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
       if(pid_input == 0) {
         //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
@@ -234,7 +186,7 @@ void rpm_duty_timer_it_rollover(void)
 
   rpm_rollover_count++;
 
-  if(rpm_rollover_count >= 2)   //toto ceknout podle me mam byt > 1 [ses kokot, >= 2 a >1 je to same]
+  if(rpm_rollover_count > 1)   //toto ceknout podle me mam byt > 1 [ses kokot, >= 2 a >1 je to same]
   {
     rpm_measured = 0;                 //mozna tady taky prumerovat nebo nejak ignorovat par chybejicich pulzu
     rpm_rollover_count = 2;     //nene tady nic neprumerovat, v presuseni od inputu se prumeruji jen platne hodnoty, vynechane pusly se ignoruji
@@ -283,35 +235,42 @@ void rpm_it_capture(void)
   /* frequency computation */
   uint32_t rpm = 0;
 
-  if(rpm_rollover_count < 2) {    //calculate rpm only when _LastCapture is valid (or <=1)
+  //if(rpm_rollover_count < 2) {    //calculate rpm only when _LastCapture is valid (or <=1)
 
-    if(rpm_capture > rpm_last_capture) {
+    if(rpm_rollover_count == 0) {   //!!!rpm measurement from example was buggy causing freuqncies 15-30Hz to translate to 0-10000rpm
       //rpm_measured 
       rpm = PRM_DUTY_TIMER_IFREQ * FREQ_TO_RPM / (rpm_capture - rpm_last_capture);
-    } else { //if (rpm_capture <= rpm_last_capture) {   //the second condition is useless
+    } else if ((rpm_capture <= rpm_last_capture) and (rpm_rollover_count == 1)){   //the second condition is no more useless
       /* 0x1000 is max overflow value */
       //rpm_measured 
       rpm = PRM_DUTY_TIMER_IFREQ * FREQ_TO_RPM / (0x10000 + rpm_capture - rpm_last_capture);
     }
 
-    if(rpm < RPM_MAX) {                 //check if the rpm we got makes sense - ignore if its way high (dont even update rpm_measured)
+    if((rpm < RPM_MAX) and (rpm > 0)) {                 //check if the rpm we got makes sense - ignore if its way high (dont even update rpm_measured)
       //calculate average from 4 last good measurements and rotate the history
       rpm_measured = (rpm + rpm_history[0] + rpm_history[1] + rpm_history[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit
       rpm_history[2] = rpm_history[1];
       rpm_history[1] = rpm_history[0];
       rpm_history[0] = rpm;
     } 
-    
-  } 
+  //} 
     
   rpm_last_capture = rpm_capture;
+
+  //Serial.printf("\r\n%u\t%u\t%u\t%u\t%u\t%u",rpm_rollover_count, rpm_measured, rpm, rpm_history[0], rpm_history[1], rpm_history[2]);
+  
   rpm_rollover_count = 0;
   
 //  digitalWrite(LED_ONBOARD, !digitalRead(LED_ONBOARD));   //flip the onboard LED to indicate we are alive
-//  Serial.printf("\r\n%u\t%u\t%u\t%u\t%u", rpm_measured, rpm, rpm_history[0], rpm_history[1], rpm_history[2]); 
+   
 }
 
 void hw_timer_rpm_duty_meter_init() {
+  //clear rpm history array
+  rpm_history[0]=0;
+  rpm_history[1]=0;
+  rpm_history[2]=0;
+  
   // Automatically retrieve TIM instance and duty_ch_rising associated to pin
   // This is used to be compatible with all STM32 series automatically.
   TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(digitalPinToPinName(DUTY_INPUT), PinMap_PWM);
@@ -343,7 +302,7 @@ void hw_timer_rpm_duty_meter_init() {
 
   // Configure rising edge detection to measure frequency
   rpm_duty_timer->setMode(duty_ch_rising, TIMER_INPUT_FREQ_DUTY_MEASUREMENT, DUTY_INPUT);
-  rpm_duty_timer->setMode(rpm_channel, TIMER_INPUT_CAPTURE_RISING, RPM_INPUT); //or _FALLING if want to detect the other edge
+  rpm_duty_timer->setMode(rpm_channel, TIMER_INPUT_CAPTURE_FALLING, RPM_INPUT); //or _FALLING if want to detect the other edge
 
   // With a PrescalerFactor = 1, the minimum frequency value to measure is : TIM counter clock / CCR MAX
   //  = (SystemCoreClock) / 65535
@@ -409,7 +368,6 @@ void lambda() {
     digitalWrite(LED_RIGHT, HIGH);
     digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, LOW);
-    
   }
 }
 
@@ -446,208 +404,6 @@ void get_icv() {
 #endif    
 }
 
-void showvalues() {
-
-  //battery
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, BATTERY_TXT_Y);
-  tft.printf("%u.%u%uV", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10);   
-  //tft.printf("%u.%u%uV%n", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10, &len); //https://www.geeksforgeeks.org/g-fact-31/
-  //tft.printf("%-*s", 6 - len, "V");                                                       //https://stackoverflow.com/questions/276827/string-padding-in-c
-  if (battery_voltage < 10000) tft.print(" ");
-  tft.setCursor(VAL2_X, BATTERY_TXT_Y);
-  if (battery_voltage < V_BATT_FAIL) {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" FAIL "));
-  } else if (battery_voltage < V_BATT_LOW) {
-    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.print(F(" LOW  "));
-  } else if (battery_voltage >= V_BATT_HIGH) {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" HIGH "));
-  } else {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  }
-
-  //lambda
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, LAMBDA_TXT_Y);
-  tft.printf("%umV", lambda_voltage);
-  //spaces after to delete previous - total 6 chars, 2 used by "mV", one for first digit => 6-2-1=3
-  if (lambda_voltage < 10) tft.print(" ");
-  if (lambda_voltage < 100) tft.print(" ");
-  if (lambda_voltage < 1000) tft.print(" ");
-    
-  if (lambda_voltage <= V_LEAN2) {
-    //very lean
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-    tft.print(F("V-LEAN"));
-  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
-    //lean
-    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-    tft.print(F(" LEAN "));
-  } else if((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
-    //right
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-    tft.print(F(" GOOD "));
-  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
-    //rich
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-    tft.print(F(" RICH "));
-  } else if(V_RICH2 <= lambda_voltage) {
-    //very rich
-    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-    tft.print(F("V-RICH"));
-  }      
-  
-  //ovp
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, OVP_TXT_Y);
-  //tft.print(F("0.0V"));
-  tft.printf("%u.%u%uV", ovp_voltage / 1000, (ovp_voltage / 100) % 10, (ovp_voltage / 10) % 10);
-  if(ovp_voltage < 10000) tft.print(" ");
-  //status
-  tft.setCursor(VAL2_X, OVP_TXT_Y);
-  if((ovp_voltage + 500) >= battery_voltage) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  } else {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" FAIL "));
-  }
-
-  //rpm
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, RPM_TXT_Y);
-  tft.printf("%-6u", rpm_measured);
-  tft.setCursor(VAL2_X, RPM_TXT_Y);
-  if(rpm_measured == 0) {
-    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.print(F(" STOP "));
-  } else if(rpm_measured <= RPM_IDLE_MAX) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F(" IDLE "));
-  } else if(rpm_measured <= RPM_MAX) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  } else {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" HIGH "));
-  }
-  
-
-  //duty
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, DUTY_TXT_Y);
-  tft.printf("%u%%", duty_cycle_measured);
-  if(duty_cycle_measured < 100) tft.print(" ");
-  if(duty_cycle_measured < 10) tft.print(" ");
-  //status
-  tft.setCursor(VAL2_X, DUTY_TXT_Y);
-  if ((duty_cycle_measured > DUTY_FAIL_HIGH) or (duty_cycle_measured < DUTY_FAIL_LOW)) {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.printf(F(" FAIL ")); 
-  } else if((duty_freq_measured > DUTY_FREQ_HIGH) or (duty_freq_measured < DUTY_FREQ_LOW)) {
-    //bad freq, should be 100Hz
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.printf(F(" FREQ "));
-  } else if((duty_cycle_measured >= DUTY_WARN_HIGH) or (duty_cycle_measured <= DUTY_WARN_LOW)) {
-    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.printf(F(" WARN "));
-  } else {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  }
-
-  //ICV
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, ICV_TXT_Y);
-  //tft.print(F("0.0V")); 
-  tft.printf("%u.%u%uV", icv_voltage / 1000, (icv_voltage / 100) % 10, (icv_voltage / 10) % 10);
-  if(icv_voltage < 10000) tft.print(" ");
-  tft.setCursor(VAL2_X, ICV_TXT_Y);
-  if(icv_voltage >= ICV_VOLTAGE_MIN) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  } else {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" FAIL "));
-  } 
-  //tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-  //tft.setCursor(VAL2_X, ICV_TXT_Y);
-  //tft.print(F(" FAIL "));  
-
-  //LPG
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, LPG_TXT_Y);
-  tft.print(F("10%"));
-  tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-  tft.setCursor(VAL2_X, LPG_TXT_Y);
-  tft.print(F(" WARN "));  
-
-}
-
-void drawbasicscreen() {
-  //clear screen with background color
-  tft.fillScreen(BACKGROUND_COLOR);
-
-  //header
-  tft.setCursor(3, 3);
-  tft.setTextColor(HEADER_COLOR);
-  tft.setTextSize(2);
-  tft.setTextWrap(false);
-  tft.print(F("MERCEDES-PILL"));
-  tft.drawFastHLine(0, 19, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 20, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 0, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 1, 160, LINE_COLOR); //0x3186);
-
-  //switch to draw parametters
-  tft.setTextSize(1);
-  tft.setTextColor(TXT_PARAM_COLOR);
-  
-  //battery
-  tft.setCursor(TXT_X, BATTERY_TXT_Y);
-  tft.print(F("Battery"));
-  tft.drawFastHLine(LINE_X, BATTERY_LINE_Y, LINE_LEN, LINE_COLOR);
-
-  //lambda
-  tft.setCursor(TXT_X, LAMBDA_TXT_Y);
-  tft.print(F("Lambda"));
-  tft.drawFastHLine(LINE_X, LAMBDA_LINE_Y, LINE_LEN, LINE_COLOR);
-  
-  //OVP
-  tft.setCursor(TXT_X, OVP_TXT_Y);
-  tft.print(F("OVP relay"));
-  tft.drawFastHLine(LINE_X, OVP_LINE_Y, LINE_LEN, LINE_COLOR);
-
-  //RPM
-  tft.setCursor(TXT_X, RPM_TXT_Y);
-  tft.print(F("Engine RPM"));
-  tft.drawFastHLine(LINE_X, RPM_LINE_Y, LINE_LEN, LINE_COLOR);
-
-  //duty
-  tft.setCursor(TXT_X, DUTY_TXT_Y);
-  tft.print(F("Duty cycle"));
-  tft.drawFastHLine(LINE_X, DUTY_LINE_Y, LINE_LEN, LINE_COLOR);
-
-  //ICV
-  tft.setCursor(TXT_X, ICV_TXT_Y);
-  tft.print(F("ICV"));
-  tft.drawFastHLine(LINE_X, ICV_LINE_Y, LINE_LEN, LINE_COLOR);
-
-  //LPG (or whatever else)
-  tft.setCursor(TXT_X, LPG_TXT_Y);
-  tft.print(F("LPG tank"));
-  tft.drawFastHLine(LINE_X, LPG_LINE_Y, LINE_LEN, LINE_COLOR);
-}
-
 void setup() {
   // initialize serial communications at 9600 bps:
   Serial.begin(115200);
@@ -666,16 +422,7 @@ void setup() {
   Serial.print(V_RICH2);
   Serial.print(F("mV\r\n\r\nLCD init "));
 
-  tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
-  tft.setRotation(3);
-  tft.fillScreen(ST77XX_BLACK);
-  Serial.println(F("- DONE\r\nDrawing logo"));
-  tft.drawRGBBitmap(26, 6, mblogo, 108, 108);
-  tft.setCursor(8, 120);
-  tft.setTextSize(1);
-  tft.setTextColor(ST77XX_BLUE);
-  tft.print(F("BugerDread 2021 ver 0.01"));
-  Serial.println(F("- DONE\r\n"));
+  lcd_init();
   
   //ADC will use 12bit accuracy
   analogReadResolution(12);
@@ -727,11 +474,8 @@ void setup() {
   vref_value = analogRead(AVREF);
   
   //init hw-timer-duty-cycle-meter
-  rpm_history[0]=0;
-  rpm_history[1]=0;
-  rpm_history[2]=0;
   hw_timer_rpm_duty_meter_init();
-  pinMode(RPM_INPUT, INPUT);
+  //pinMode(RPM_INPUT, INPUT_PULLUP); //timer init sets the pin to INPUT, when pullup is needed it needs to be changed here again
   pid_set_tunings(2, 3, 0); //0.2, 0.1, 0
   Serial.printf("sampletime: %ums = %uHz", pid_sample_time, PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
