@@ -20,17 +20,17 @@
   const uint16_t TXT_VAL_COLOR = ST77XX_GREEN;
   const uint8_t BATTERY_TXT_Y = 25;
   const uint8_t BATTERY_LINE_Y = BATTERY_TXT_Y + TEXT_H + SPACER;
-  const uint8_t LAMBDA_TXT_Y = BATTERY_LINE_Y + SPACER;
-  const uint8_t LAMBDA_LINE_Y = LAMBDA_TXT_Y + TEXT_H + SPACER;
-  const uint8_t OVP_TXT_Y = LAMBDA_LINE_Y + SPACER;
+  const uint8_t OVP_TXT_Y = BATTERY_LINE_Y + SPACER;
   const uint8_t OVP_LINE_Y = OVP_TXT_Y + TEXT_H + SPACER;
-  const uint8_t RPM_TXT_Y = OVP_LINE_Y + SPACER;
+  const uint8_t LAMBDA_TXT_Y = OVP_LINE_Y + SPACER;
+  const uint8_t LAMBDA_LINE_Y = LAMBDA_TXT_Y + TEXT_H + SPACER;
+  const uint8_t RPM_TXT_Y = LAMBDA_LINE_Y + SPACER;
   const uint8_t RPM_LINE_Y = RPM_TXT_Y + TEXT_H + SPACER;
-  const uint8_t DUTY_TXT_Y = RPM_LINE_Y + SPACER;
-  const uint8_t DUTY_LINE_Y = DUTY_TXT_Y + TEXT_H + SPACER;
-  const uint8_t ICV_TXT_Y = DUTY_LINE_Y + SPACER;
+  const uint8_t ICV_TXT_Y = RPM_LINE_Y + SPACER;
   const uint8_t ICV_LINE_Y = ICV_TXT_Y + TEXT_H + SPACER;
-  const uint8_t LPG_TXT_Y = ICV_LINE_Y + SPACER;
+  const uint8_t DUTY_TXT_Y = ICV_LINE_Y + SPACER;
+  const uint8_t DUTY_LINE_Y = DUTY_TXT_Y + TEXT_H + SPACER;
+  const uint8_t LPG_TXT_Y = DUTY_LINE_Y + SPACER;
   const uint8_t LPG_LINE_Y = LPG_TXT_Y + TEXT_H + SPACER;
   const uint8_t TXT_X = 0;
   const uint8_t LINE_X = 0;
@@ -57,7 +57,7 @@
   Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
 
 void lcd_init() {
-  uint32_t m1 = millis();
+  unsigned long m1 = millis();
   tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
   tft.setRotation(3);
   tft.fillScreen(ST77XX_BLACK);
@@ -67,8 +67,7 @@ void lcd_init() {
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_BLUE);
   tft.print(F("BugerDread 2021 ver 0.01"));
-  uint32_t m2 = millis();
-  Serial.printf(F("LCD init took %ums\r\n"), m2 - m1);  
+  Serial.printf(F("LCD init took %ums\r\n"), millis() - m1);  
 }
 
 void drawbasicscreen() {
@@ -111,7 +110,7 @@ void drawbasicscreen() {
 
   //duty
   tft.setCursor(TXT_X, DUTY_TXT_Y);
-  tft.print(F("Duty cycle"));
+  tft.print(F("CIS duty"));
   tft.drawFastHLine(LINE_X, DUTY_LINE_Y, LINE_LEN, LINE_COLOR);
 
   //ICV
@@ -126,14 +125,11 @@ void drawbasicscreen() {
 }  
 
 void showvalues() {
-
+  unsigned long m1 = millis();
   //battery
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, BATTERY_TXT_Y);
-  tft.printf("%u.%u%uV", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10);   
-  //tft.printf("%u.%u%uV%n", battery_voltage / 1000, (battery_voltage / 100) % 10, (battery_voltage / 10) % 10, &len); //https://www.geeksforgeeks.org/g-fact-31/
-  //tft.printf("%-*s", 6 - len, "V");                                                       //https://stackoverflow.com/questions/276827/string-padding-in-c
-  if (battery_voltage < 10000) tft.print(" ");
+  tft.printf(F("%5.2fV"), (float)battery_voltage / 1000); 
   tft.setCursor(VAL2_X, BATTERY_TXT_Y);
   if (battery_voltage < V_BATT_FAIL) {
     tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
@@ -149,14 +145,24 @@ void showvalues() {
     tft.print(F("  OK  "));
   }
 
+  //ovp
+  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+  tft.setCursor(VAL1_X, OVP_TXT_Y);
+  tft.printf(F("%5.2fV"), (float)ovp_voltage / 1000);
+  //status
+  tft.setCursor(VAL2_X, OVP_TXT_Y);
+  if((ovp_voltage + 500) >= battery_voltage) {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
+  } else {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" FAIL "));
+  }
+
   //lambda
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, LAMBDA_TXT_Y);
-  tft.printf("%umV", lambda_voltage);
-  //spaces after to delete previous - total 6 chars, 2 used by "mV", one for first digit => 6-2-1=3
-  if (lambda_voltage < 10) tft.print(" ");
-  if (lambda_voltage < 100) tft.print(" ");
-  if (lambda_voltage < 1000) tft.print(" ");
+  tft.printf(F("%4umV"), lambda_voltage);
     
   if (lambda_voltage <= V_LEAN2) {
     //very lean
@@ -184,27 +190,11 @@ void showvalues() {
     tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
     tft.print(F("V-RICH"));
   }      
-  
-  //ovp
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, OVP_TXT_Y);
-  //tft.print(F("0.0V"));
-  tft.printf("%u.%u%uV", ovp_voltage / 1000, (ovp_voltage / 100) % 10, (ovp_voltage / 10) % 10);
-  if(ovp_voltage < 10000) tft.print(" ");
-  //status
-  tft.setCursor(VAL2_X, OVP_TXT_Y);
-  if((ovp_voltage + 500) >= battery_voltage) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  } else {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" FAIL "));
-  }
 
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, RPM_TXT_Y);
-  tft.printf("%-6u", rpm_measured);
+  tft.printf(F("%6u"), rpm_measured);
   tft.setCursor(VAL2_X, RPM_TXT_Y);
   if(rpm_measured == 0) {
     tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
@@ -220,41 +210,13 @@ void showvalues() {
     tft.print(F(" HIGH "));
   }
 
-  //duty
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, DUTY_TXT_Y);
-  tft.printf("%u%%", duty_cycle_measured);
-  if(duty_cycle_measured < 100) tft.print(" ");
-  if(duty_cycle_measured < 10) tft.print(" ");
-  //status
-  tft.setCursor(VAL2_X, DUTY_TXT_Y);
-  if ((duty_cycle_measured > DUTY_FAIL_HIGH) or (duty_cycle_measured < DUTY_FAIL_LOW)) {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.printf(F(" FAIL ")); 
-  } else if((duty_freq_measured > DUTY_FREQ_HIGH) or (duty_freq_measured < DUTY_FREQ_LOW)) {
-    //bad freq, should be 100Hz
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.printf(F(" FREQ "));
-  } else if((duty_cycle_measured >= DUTY_WARN_HIGH) or (duty_cycle_measured <= DUTY_WARN_LOW)) {
-    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.printf(F(" WARN "));
-  } else {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  }
-
-  //ICV
+  //ICV pwm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, ICV_TXT_Y);
-  //tft.print(F("0.0V")); 
-  //tft.printf("%u.%u%uV", icv_voltage / 1000, (icv_voltage / 100) % 10, (icv_voltage / 10) % 10);
-  //if(icv_voltage < 10000) tft.print(" ");
-  uint32_t icv_pwm_percent = ((pid_output - ICV_PWM_MIN) * 100) / (ICV_PWM_MAX - ICV_PWM_MIN);
-  tft.printf("%u%%", icv_pwm_percent);
-  if (icv_pwm_percent < 100) tft.print(" "); 
-  if (icv_pwm_percent < 10) tft.print(" ");
+  uint32_t icv_pwm_percent = ((pid_output - ICV_PWM_MIN) * 100) / (ICV_PWM_MAX - ICV_PWM_MIN);  //"real" percentage of regulation without the dead zone at the beginning
+  tft.printf(F("%5u%%"), icv_pwm_percent);
   tft.setCursor(VAL2_X, ICV_TXT_Y);
-  if((icv_pwm_percent > 0) and (pid_output < 100)) {
+  if((icv_pwm_percent > 0) and (icv_pwm_percent < 100)) {
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.print(F("  OK  "));
   } else {
@@ -262,12 +224,34 @@ void showvalues() {
     tft.print(F(" WARN "));
   } 
 
+  //CIS duty
+  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+  tft.setCursor(VAL1_X, DUTY_TXT_Y);
+  tft.printf(F("%5u%%"), duty_cycle_measured);
+  tft.setCursor(VAL2_X, DUTY_TXT_Y);
+  if ((duty_cycle_measured > DUTY_FAIL_HIGH) or (duty_cycle_measured < DUTY_FAIL_LOW)) {
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" FAIL ")); 
+  } else if((duty_freq_measured > DUTY_FREQ_HIGH) or (duty_freq_measured < DUTY_FREQ_LOW)) {
+    //bad freq, should be 100Hz
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
+    tft.print(F(" FREQ "));
+  } else if((duty_cycle_measured >= DUTY_WARN_HIGH) or (duty_cycle_measured <= DUTY_WARN_LOW)) {
+    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
+    tft.print(F(" WARN "));
+  } else {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
+  }
+
   //LPG
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, LPG_TXT_Y);
-  tft.print(F("10%"));
+  tft.printf(F("%5u%%"), 10);
   tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
   tft.setCursor(VAL2_X, LPG_TXT_Y);
   tft.print(F(" WARN "));  
+
+  Serial.printf(F("LCD update took %ums\r\n"), millis() - m1);
 
 }

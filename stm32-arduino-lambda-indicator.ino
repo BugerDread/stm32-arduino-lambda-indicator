@@ -5,7 +5,7 @@
 //board: buepillF103CB (or C8 with 128k)
 //USART support: disabled (no Serial support)
 //USB support: CDC (generic Serial supersede USART)
-//C Runtime: Newlib Nano
+//C Runtime: Newlib Nano + float printf
 //Optimize: -O2 + LTO
 
 // !!!if some variable is modified by ISR it MUST be declared as volatile
@@ -36,7 +36,7 @@
   const uint32_t  ICV_PWM_MIN = 0;          //minimum ICV PWM out during regulation (to skip initial 20% open wo power)
   const uint32_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
 
-  const uint32_t  RPM_IDLE = 600;
+  const uint32_t  RPM_IDLE = 555;
   const uint32_t  RPM_IDLE_MAX = 1200;
   const uint32_t  RPM_MAX = 10000;
                                               
