@@ -116,7 +116,7 @@ void drawbasicscreen() {
 
   //ICV
   tft.setCursor(TXT_X, ICV_TXT_Y);
-  tft.print(F("ICV"));
+  tft.print(F("ICV PWM"));
   tft.drawFastHLine(LINE_X, ICV_LINE_Y, LINE_LEN, LINE_COLOR);
 
   //LPG (or whatever else)
@@ -247,15 +247,19 @@ void showvalues() {
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, ICV_TXT_Y);
   //tft.print(F("0.0V")); 
-  tft.printf("%u.%u%uV", icv_voltage / 1000, (icv_voltage / 100) % 10, (icv_voltage / 10) % 10);
-  if(icv_voltage < 10000) tft.print(" ");
+  //tft.printf("%u.%u%uV", icv_voltage / 1000, (icv_voltage / 100) % 10, (icv_voltage / 10) % 10);
+  //if(icv_voltage < 10000) tft.print(" ");
+  uint32_t icv_pwm_percent = ((pid_output - ICV_PWM_MIN) * 100) / (ICV_PWM_MAX - ICV_PWM_MIN);
+  tft.printf("%u%%", icv_pwm_percent);
+  if (icv_pwm_percent < 100) tft.print(" "); 
+  if (icv_pwm_percent < 10) tft.print(" ");
   tft.setCursor(VAL2_X, ICV_TXT_Y);
-  if(icv_voltage >= ICV_VOLTAGE_MIN) {
+  if((icv_pwm_percent > 0) and (pid_output < 100)) {
     tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
     tft.print(F("  OK  "));
   } else {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-    tft.print(F(" FAIL "));
+    tft.setTextColor(FAIL_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
+    tft.print(F(" WARN "));
   } 
 
   //LPG
