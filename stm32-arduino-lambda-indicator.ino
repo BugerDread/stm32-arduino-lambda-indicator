@@ -25,7 +25,7 @@
   const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
   const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
   const uint32_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
-  const uint32_t  CYCLE_DELAY = 1000;    //delay for each round [ms]
+  const uint32_t  CYCLE_DELAY = 20;    //delay for each round [ms]
   const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
@@ -33,12 +33,16 @@
   const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
   const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
-  const uint32_t  ICV_PWM_MIN = 0;          //minimum ICV PWM out during regulation (to skip initial 20% open wo power)
-  const uint32_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
+  const uint32_t  ICV_PWM_MIN = 0;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
+  const uint32_t  ICV_PWM_MAX = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
 
-  const uint32_t  RPM_IDLE = 555;
+  const uint32_t  RPM_IDLE = 600;
   //const uint32_t  RPM_IDLE_MAX = 1200;    //asi zrusit
   const uint32_t  RPM_MAX = 10000;
+
+  const double    PID_KP = 1.5;
+  const double    PID_KI = 3;
+  const double    PID_KD = 0;
                                               
   const uint32_t  DUTY_FAIL_LOW = 10;
   const uint32_t  DUTY_FAIL_HIGH = 90;
@@ -102,8 +106,6 @@
 //PID
   //const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ;     //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
   const double pid_sample_time_s = (double)65536 / PRM_DUTY_TIMER_IFREQ;   //time period [in s] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) = 65536 / PRM_DUTY_TIMER_IFREQ;
-  //const double pid_out_min = 0;    //needs to be set to ICV fully closed
-  //const double pid_out_max = 255;
   volatile uint32_t pid_output;      //this variable needs to be able to hold values in range pid_out_min .. pid_out_max
   volatile uint32_t pid_debug_cnt = 0;
   double pid_setpoint = RPM_IDLE;
@@ -146,7 +148,7 @@ void pid_compute()
       pid_lastinput = input;
 
       if (++pid_debug_cnt >= 10) {
-        Serial.printf("RPM: %-5u ERR: %-5d OUT: %u\r\n", rpm_measured, (int32_t)error, pid_output);
+        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, (int32_t)error, pid_output);
         pid_debug_cnt = 0;
       }
 }
@@ -156,6 +158,11 @@ void pid_set_tunings(double Kp, double Ki, double Kd)
    pid_kp = Kp;
    pid_ki = Ki * pid_sample_time_s;
    pid_kd = Kd / pid_sample_time_s;
+
+   Serial.printf(F("PID params:\r\nPID_KP = %f\r\nPID_KI = %f\r\nPID_KD = %f\r\npid_sample_time_s = %f\
+                    \r\npid_kp = %f\r\npid_ki = %f\r\npid_kd = %f\r\n"), \
+                    PID_KP, PID_KI, PID_KD, pid_sample_time_s, \
+                    pid_kp, pid_ki, pid_kd);
 }
 
 void duty_it_capture_rising(void)
@@ -480,7 +487,7 @@ void setup() {
   
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
-  pid_set_tunings(2, 3, 0); //0.2, 0.1, 0
+  pid_set_tunings(PID_KP, PID_KI, PID_KD); //0.2, 0.1, 0
   Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
 }

@@ -56,6 +56,8 @@
   //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
   Adafruit_ST7735 tft = Adafruit_ST7735(&SPI3, TFT_CS, TFT_DC, TFT_RST);
 
+  uint32_t chart_x = 0;
+
 void lcd_init() {
   unsigned long m1 = millis();
   tft.initR(INITR_BLACKTAB);      // Init ST7735S chip, black tab
@@ -199,30 +201,38 @@ void showvalues() {
   if(rpm_measured == 0) {
     tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
     tft.print(F(" STOP "));
-  } else if(rpm_measured <= RPM_IDLE_MAX) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F(" IDLE "));
-  } else if(rpm_measured <= RPM_MAX) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  } else {
+  } else if(rpm_measured > RPM_MAX) {
     tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
     tft.print(F(" HIGH "));
+  } else {
+    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+    tft.print(F("  OK  "));
   }
 
   //ICV pwm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, ICV_TXT_Y);
-  uint32_t icv_pwm_percent = ((pid_output - ICV_PWM_MIN) * 100) / (ICV_PWM_MAX - ICV_PWM_MIN);  //"real" percentage of regulation without the dead zone at the beginning
-  tft.printf(F("%5u%%"), icv_pwm_percent);
-  tft.setCursor(VAL2_X, ICV_TXT_Y);
-  if((icv_pwm_percent > 0) and (icv_pwm_percent < 100)) {
-    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-    tft.print(F("  OK  "));
-  } else {
-    tft.setTextColor(FAIL_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-    tft.print(F(" WARN "));
-  } 
+  //uint32_t icv_pwm_percent = ((pid_output - ICV_PWM_MIN) * 100) / (ICV_PWM_MAX - ICV_PWM_MIN);  //"real" percentage of regulation without the dead zone at the beginning
+  tft.printf(F("%6u%"), pid_output);
+  uint32_t chart_y = pid_output * (TEXT_H + SPACER + SPACER - 1 - 1) / ICV_PWM_MAX;
+ // tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y, TEXT_H - chart_y , ST77XX_BLACK);
+  //tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y + TEXT_H - chart_y, chart_y, ST77XX_WHITE);
+    
+  tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y - SPACER + 1, TEXT_H + SPACER + SPACER -1, ST77XX_BLACK);
+  tft.drawPixel(VAL2_X + chart_x, ICV_TXT_Y - SPACER + TEXT_H + SPACER + SPACER - 1 - chart_y, ST77XX_WHITE);  //
+  if ((++chart_x + VAL2_X) >= 160) {
+    chart_x = 0;
+  }
+  tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y - SPACER + 1, TEXT_H + SPACER + SPACER -1, ST77XX_YELLOW);
+  
+//  tft.setCursor(VAL2_X, ICV_TXT_Y);
+//  if((pid_output > ICV_PWM_MIN) and (pid_output < ICV_PWM_MAX)) {
+//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
+//    tft.print(F("  OK  "));
+//  } else {
+//    tft.setTextColor(FAIL_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
+//    tft.print(F(" WARN "));
+//  } 
 
   //CIS duty
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
