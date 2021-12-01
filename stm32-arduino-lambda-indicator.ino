@@ -29,7 +29,7 @@
   const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
-  const uint32_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
+  //const uint32_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
   const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
   const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
@@ -37,7 +37,7 @@
   const uint32_t  ICV_PWM_MAX = 255;        //maximum ICV PWM out during regulation (usually full range)
 
   const uint32_t  RPM_IDLE = 555;
-  const uint32_t  RPM_IDLE_MAX = 1200;
+  //const uint32_t  RPM_IDLE_MAX = 1200;    //asi zrusit
   const uint32_t  RPM_MAX = 10000;
                                               
   const uint32_t  DUTY_FAIL_LOW = 10;
@@ -51,7 +51,7 @@
   const uint32_t  LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
   const uint32_t  BATT_INPUT = A0;     //battery voltage input
   const uint32_t  OVP_INPUT = A1;      //OVP voltage input
-  const uint32_t  ICV_INPUT = A2;      //ICV voltage input
+  //const uint32_t  ICV_INPUT = A2;      //ICV voltage input
   const uint32_t  DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
   const uint32_t  RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
@@ -62,8 +62,8 @@
   const uint32_t  VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
   const uint32_t  OVP_CAL_IN = 11670;   //
   const uint32_t  OVP_CAL_READ = 2194;  //
-  const uint32_t  ICV_CAL_IN = 4520;   //not calibrated yet
-  const uint32_t  ICV_CAL_READ = 801;  //not calibrated yet
+  //const uint32_t  ICV_CAL_IN = 4520;   //not calibrated yet
+  //const uint32_t  ICV_CAL_READ = 801;  //not calibrated yet
 
   //outputs
   const uint32_t  LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
@@ -77,10 +77,11 @@
 //global variables
   uint32_t battery_voltage, battery_voltage_uncal;
   uint32_t ovp_voltage, ovp_voltage_uncal;
-  uint32_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
+  //uint32_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
   
 //global variables used in interrupts (needs to be volatile)
-  volatile uint32_t battery_raw, ovp_raw, icv_raw, vref_value, lambda_voltage;
+  volatile uint32_t battery_raw, ovp_raw, vref_value, lambda_voltage;
+  //volatile uint32_t icv_raw;
 
 //hw-timer for rpm and duty-cycle meter
 //rpm and duty-cycle meter shares the same timer (T4)
@@ -213,7 +214,7 @@ void rpm_duty_timer_it_rollover(void)
   lambda();
   battery_raw = analogRead(BATT_INPUT);   //here we read just raw values
   ovp_raw =  analogRead(OVP_INPUT);       //we will calculate voltages when we need them (when is time to display them)
-  icv_raw = analogRead(ICV_INPUT);        //it does not make sense to calculate these voltages every 1/30s and display them once
+//  icv_raw = analogRead(ICV_INPUT);        //it does not make sense to calculate these voltages every 1/30s and display them once
 
   pid_compute(); //process pid
 }
@@ -397,20 +398,20 @@ void get_ovp() {
 #endif  
 }
 
-void get_icv() {
-  //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-  //ovp_voltage needs to be known
-  icv_voltage_uncal = (((uint32_t)icv_raw * V_REFI) / vref_value);
-  icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
-  if(ovp_voltage > icv_voltage_abs) { 
-    icv_voltage = ovp_voltage - icv_voltage_abs;
-  } else {
-    icv_voltage = 0;
-  }
-#ifdef SDEBUG
-  Serial.printf("ICV = %umV\r\nICV_abs = %umV\r\nICV_uncal = %umV\r\n", icv_voltage, icv_voltage_abs, icv_voltage_uncal);
-#endif    
-}
+//void get_icv() {
+//  //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
+//  //ovp_voltage needs to be known
+//  icv_voltage_uncal = (((uint32_t)icv_raw * V_REFI) / vref_value);
+//  icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
+//  if(ovp_voltage > icv_voltage_abs) { 
+//    icv_voltage = ovp_voltage - icv_voltage_abs;
+//  } else {
+//    icv_voltage = 0;
+//  }
+//#ifdef SDEBUG
+//  Serial.printf("ICV = %umV\r\nICV_abs = %umV\r\nICV_uncal = %umV\r\n", icv_voltage, icv_voltage_abs, icv_voltage_uncal);
+//#endif    
+//}
 
 void setup() {
   Serial.begin(115200);
@@ -438,7 +439,7 @@ void setup() {
   pinMode(LAMBDA_INPUT, INPUT_ANALOG);
   pinMode(BATT_INPUT, INPUT_ANALOG);
   pinMode(OVP_INPUT, INPUT_ANALOG);
-  pinMode(ICV_INPUT, INPUT_ANALOG);
+//  pinMode(ICV_INPUT, INPUT_ANALOG);
   pinMode(DUTY_INPUT, INPUT);
   pinMode(RPM_INPUT, INPUT);
   analogWriteFrequency(ICV_PWM_FREQ);          //100Hz
@@ -487,7 +488,7 @@ void setup() {
 void loop() {
   get_battery();
   get_ovp();
-  get_icv();
+//  get_icv();
 
   showvalues();
  
