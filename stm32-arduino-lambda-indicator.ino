@@ -25,7 +25,7 @@
   const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
   const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
   const uint32_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
-  const uint32_t  CYCLE_DELAY = 20;    //delay for each round [ms]
+  const uint32_t  CYCLE_DELAY = 50;    //delay for each round [ms]
   const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
