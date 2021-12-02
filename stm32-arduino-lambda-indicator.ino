@@ -25,7 +25,7 @@
   const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
   const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
   const uint32_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
-  const uint32_t  CYCLE_DELAY = 50;    //delay for each round [ms]
+  const uint32_t  CYCLE_DELAY = 100;    //delay for each round [ms]
   const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
   const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
@@ -36,7 +36,7 @@
   const uint32_t  ICV_PWM_MIN = 0;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
   const uint32_t  ICV_PWM_MAX = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
 
-  const uint32_t  RPM_IDLE = 600;
+  const uint32_t  RPM_IDLE = 750;
   //const uint32_t  RPM_IDLE_MAX = 1200;    //asi zrusit
   const uint32_t  RPM_MAX = 10000;
 
@@ -492,12 +492,13 @@ void setup() {
   drawbasicscreen();
 }
 
-void loop() {
-  get_battery();
-  get_ovp();
-//  get_icv();
+unsigned long loop_last_millis = 0;
 
-  showvalues();
- 
-  delay(CYCLE_DELAY);
+void loop() {
+  if ((millis() - loop_last_millis) > CYCLE_DELAY) {
+    loop_last_millis = millis();
+    get_battery();
+    get_ovp();
+    showvalues();
+  }
 }
