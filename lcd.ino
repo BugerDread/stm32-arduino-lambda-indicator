@@ -38,8 +38,8 @@
   const uint16_t LINE_COLOR = 0x528A;
   const uint16_t BACKGROUND_COLOR = ST77XX_BLACK;
   const uint16_t HEADER_COLOR = ST77XX_BLUE;
-  const uint8_t VAL1_X = 80;
-  const uint8_t VAL2_X = 120;
+  const uint8_t VAL1_X = 70;
+  const uint8_t VAL2_X = 109;
   const uint16_t GOOD_VAL_TXT_COLOR = ST77XX_BLACK;
   const uint16_t WARN_VAL_TXT_COLOR = ST77XX_BLACK;
   const uint16_t FAIL_VAL_TXT_COLOR = ST77XX_BLACK;
