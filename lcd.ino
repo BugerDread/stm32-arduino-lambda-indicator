@@ -152,7 +152,7 @@ void drawchart(uint32_t pos_y, uint32_t value, uint32_t value_min, uint32_t valu
 }
 
 void showvalues() {
-  unsigned long m1 = millis();
+//  unsigned long m1 = millis();
   //battery
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, BATTERY_TXT_Y);
@@ -243,9 +243,9 @@ void showvalues() {
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, ICV_TXT_Y);
   tft.printf(F("%6u%"), pid_output);
-  drawchart(ICV_TXT_Y, pid_output, ICV_PWM_MIN, ICV_PWM_MAX);
+  drawchart(ICV_TXT_Y, pid_output, pid_out_min, pid_out_max);
   
-//  uint32_t chart_y = pid_output * (TEXT_H + (2 * SPACER) - 2) / ICV_PWM_MAX;
+//  uint32_t chart_y = pid_output * (TEXT_H + (2 * SPACER) - 2) / pid_out_max;
 //    
 //  tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y - SPACER + 1, TEXT_H + (2 * SPACER) -1, ST77XX_BLACK);
 //  tft.drawPixel(VAL2_X + chart_x, ICV_TXT_Y + TEXT_H + SPACER - 1 - chart_y, ST77XX_WHITE);  //
@@ -298,6 +298,6 @@ void showvalues() {
     chart_x = 0;
   }
 
-  Serial.printf(F("LCD update took %ums\r\n"), millis() - m1);
+//  Serial.printf(F("LCD update took %ums\r\n"), millis() - m1);
 
 }

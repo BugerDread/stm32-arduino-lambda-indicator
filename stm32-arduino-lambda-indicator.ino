@@ -33,16 +33,16 @@
   const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
   const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
-  const uint32_t  ICV_PWM_MIN = 0;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
-  const uint32_t  ICV_PWM_MAX = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
+  const uint32_t  ICV_PWM_MIN_DEFAULT = 0;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
+  const uint32_t  ICV_PWM_MAX_DEFAULT = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
 
   const uint32_t  RPM_IDLE = 750;
   //const uint32_t  RPM_IDLE_MAX = 1200;    //asi zrusit
   const uint32_t  RPM_MAX = 10000;
 
-  const double    PID_KP = 1.5;
-  const double    PID_KI = 3;
-  const double    PID_KD = 0;
+  const double    PID_KP_DEFAULT = 1.5;
+  const double    PID_KI_DEFAULT = 2;
+  const double    PID_KD_DEFAULT = 0;
                                               
   const uint32_t  DUTY_FAIL_LOW = 10;
   const uint32_t  DUTY_FAIL_HIGH = 90;
@@ -111,9 +111,12 @@
   double pid_setpoint = RPM_IDLE;
   double pid_iterm = 0;
   double pid_lastinput = 0;
-  double pid_kp = 0;
-  double pid_ki = 0;
-  double pid_kd = 0;
+  double pid_kp = PID_KP_DEFAULT;
+  double pid_ki = PID_KI_DEFAULT;
+  double pid_kd = PID_KD_DEFAULT;
+  double pid_kp_internal, pid_ki_internal, pid_kd_internal; 
+  uint32_t pid_out_min = ICV_PWM_MIN_DEFAULT;
+  uint32_t pid_out_max = ICV_PWM_MAX_DEFAULT;
 
 void pid_compute()
 {     
@@ -129,15 +132,15 @@ void pid_compute()
 
       /*Compute all the working error variables*/
       double error = pid_setpoint - input;
-      pid_iterm += (pid_ki * error);
-      if(pid_iterm > ICV_PWM_MAX) pid_iterm = ICV_PWM_MAX;
-      else if (pid_iterm < ICV_PWM_MIN) pid_iterm = ICV_PWM_MIN;
+      pid_iterm += (pid_ki_internal * error);
+      if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
+      else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
       double dInput = (input - pid_lastinput);
  
       /*Compute PID Output*/
-      double output = pid_kp * error + pid_iterm - pid_kd * dInput;
-      if(output > ICV_PWM_MAX) output = ICV_PWM_MAX;
-      else if(output < ICV_PWM_MIN) output = ICV_PWM_MIN;
+      double output = pid_kp_internal * error + pid_iterm - pid_kd_internal * dInput;
+      if(output > pid_out_max) output = pid_out_max;
+      else if(output < pid_out_min) output = pid_out_min;
       //now we have the result computed
       pid_output = output;
 
@@ -147,22 +150,25 @@ void pid_compute()
       /*Remember some variables for next time*/
       pid_lastinput = input;
 
-      if (++pid_debug_cnt >= 10) {
-        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, (int32_t)error, pid_output);
-        pid_debug_cnt = 0;
-      }
+//      if (++pid_debug_cnt >= 10) {
+//        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, (int32_t)error, pid_output);
+//        pid_debug_cnt = 0;
+//      }
 }
 
 void pid_set_tunings(double Kp, double Ki, double Kd)
 {
-   pid_kp = Kp;
-   pid_ki = Ki * pid_sample_time_s;
-   pid_kd = Kd / pid_sample_time_s;
+   pid_kp_internal = Kp;
+   pid_ki_internal = Ki * pid_sample_time_s;
+   pid_kd_internal = Kd / pid_sample_time_s;
 
-   Serial.printf(F("PID params:\r\nPID_KP = %f\r\nPID_KI = %f\r\nPID_KD = %f\r\npid_sample_time_s = %f\
-                    \r\npid_kp = %f\r\npid_ki = %f\r\npid_kd = %f\r\n"), \
-                    PID_KP, PID_KI, PID_KD, pid_sample_time_s, \
-                    pid_kp, pid_ki, pid_kd);
+   Serial.printf(F("PID params:\r\n"
+                   "pid_sample_time = %.2fms / %uHz\r\n"
+                   "pid_kp = %.2f (%.2f)\r\n"
+                   "pid_ki = %.2f (%.2f)\r\n"
+                   "pid_kd = %.2f (%.2f)\r\n"),
+                   pid_sample_time_s * 1000, PRM_DUTY_TIMER_IFREQ / 65536,
+                   pid_kp, PID_KP_DEFAULT, pid_ki, PID_KI_DEFAULT, pid_kd, PID_KD_DEFAULT);
 }
 
 void duty_it_capture_rising(void)
@@ -487,8 +493,8 @@ void setup() {
   
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
-  pid_set_tunings(PID_KP, PID_KI, PID_KD); //0.2, 0.1, 0
-  Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
+  pid_set_tunings(pid_kp, pid_ki, pid_kd); //0.2, 0.1, 0
+  //Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
 }
 
@@ -501,4 +507,5 @@ void loop() {
     get_ovp();
     showvalues();
   }
+  checkserial();
 }
