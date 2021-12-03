@@ -164,11 +164,11 @@ void pid_set_tunings(double Kp, double Ki, double Kd)
 
    Serial.printf(F("PID params:\r\n"
                    "pid_sample_time = %.2fms / %uHz\r\n"
-                   "pid_kp = %.2f (%.2f)\r\n"
-                   "pid_ki = %.2f (%.2f)\r\n"
-                   "pid_kd = %.2f (%.2f)\r\n"),
+                   "pid_kp = %.2f\r\n"
+                   "pid_ki = %.2f\r\n"
+                   "pid_kd = %.2f\r\n"),
                    pid_sample_time_s * 1000, PRM_DUTY_TIMER_IFREQ / 65536,
-                   pid_kp, PID_KP_DEFAULT, pid_ki, PID_KI_DEFAULT, pid_kd, PID_KD_DEFAULT);
+                   pid_kp, pid_ki, pid_kd);
 }
 
 void duty_it_capture_rising(void)
@@ -456,7 +456,7 @@ void setup() {
   pinMode(DUTY_INPUT, INPUT);
   pinMode(RPM_INPUT, INPUT);
   analogWriteFrequency(ICV_PWM_FREQ);          //100Hz
-  analogWriteResolution(ICV_PWM_BITS);          //we have 16bit timers so use them
+  analogWriteResolution(ICV_PWM_BITS);          //we have 16bit timers so use them or not?
   pinMode(ICV_PWM_OUT, OUTPUT);               //ICV PWM signal
   analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);             //16% ------- 6553500 = 100%
 
@@ -490,7 +490,8 @@ void setup() {
   delay(750);
 
   vref_value = analogRead(AVREF);
-  
+
+  eeload();
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
   pid_set_tunings(pid_kp, pid_ki, pid_kd); //0.2, 0.1, 0
