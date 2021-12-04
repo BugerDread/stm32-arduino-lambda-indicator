@@ -16,7 +16,7 @@ void checkserial() {
         if (pid_setpoint > 0) {
           pid_setpoint -= 1;
         }
-        Serial.printf(F("idle rpm set to: %.0f\r\n"), pid_setpoint);
+        Serial.printf(F("idle rpm = %.0f\r\n"), pid_setpoint);
         break;
 
       case 'p':
@@ -75,7 +75,7 @@ void checkserial() {
         if (pid_out_max < 255) {
           pid_out_max++;
         }
-        Serial.printf(F("pid_out_min = %u\r\n"), pid_out_max);
+        Serial.printf(F("pid_out_max = %u\r\n"), pid_out_max);
         break;
       case 'T':
         if (pid_out_max > 0) {

@@ -242,7 +242,7 @@ void showvalues() {
   //ICV pwm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, ICV_TXT_Y);
-  tft.printf(F("%6u%"), pid_output);
+  tft.printf(F("%6u"), pid_output);
   drawchart(ICV_TXT_Y, pid_output, pid_out_min, pid_out_max);
   
 //  uint32_t chart_y = pid_output * (TEXT_H + (2 * SPACER) - 2) / pid_out_max;
