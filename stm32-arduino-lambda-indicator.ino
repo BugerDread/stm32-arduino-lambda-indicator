@@ -117,10 +117,13 @@
   double pid_kp_internal, pid_ki_internal, pid_kd_internal; 
   uint32_t pid_out_min = ICV_PWM_MIN_DEFAULT;
   uint32_t pid_out_max = ICV_PWM_MAX_DEFAULT;
+  bool pid_on = true;
 
 void pid_compute()
 {     
-      //we need to filter the rpm_measured to make sure it is sane:
+      if (!pid_on) return;    //exit if pid is not on
+  
+      //do we need to filter the rpm_measured to make sure it is sane?
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
       double input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
