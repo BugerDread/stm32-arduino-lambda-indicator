@@ -108,7 +108,7 @@
   const double pid_sample_time_s = (double)65536 / PRM_DUTY_TIMER_IFREQ;   //time period [in s] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) = 65536 / PRM_DUTY_TIMER_IFREQ;
   volatile uint32_t pid_output;      //this variable needs to be able to hold values in range pid_out_min .. pid_out_max
   volatile uint32_t pid_debug_cnt = 0;
-  double pid_setpoint = RPM_IDLE;
+  uint32_t pid_setpoint = RPM_IDLE;
   double pid_iterm = 0;
   double pid_lastinput = 0;
   double pid_kp = PID_KP_DEFAULT;

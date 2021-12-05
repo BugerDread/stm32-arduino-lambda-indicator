@@ -8,15 +8,15 @@ void checkserial() {
     switch (sdata) {
       case 'r':
         if (pid_setpoint < RPM_MAX) {
-          pid_setpoint += 1;
+          pid_setpoint++;
         }
-        Serial.printf(F("idle rpm = %.0f\r\n"), pid_setpoint);
+        Serial.printf(F("idle rpm = %u\r\n"), pid_setpoint);
         break;
       case 'R':
         if (pid_setpoint > 0) {
-          pid_setpoint -= 1;
+          pid_setpoint--;
         }
-        Serial.printf(F("idle rpm = %.0f\r\n"), pid_setpoint);
+        Serial.printf(F("idle rpm = %u\r\n"), pid_setpoint);
         break;
 
       case 'p':
@@ -86,39 +86,89 @@ void checkserial() {
       
       case 's':
         //write_confirm = true;
-        Serial.print(F("Save enabled, press \"S\" to save to EEPROM\r\n"));
+        Serial.println(F("Save enabled, press \"S\" to save to EEPROM"));
         break;   
       case 'S':
         if (sdata_last == 's') {
           eesave();
           //write_confirm = false;
         } else {
-          Serial.print(F("Please press \"s\" to enable save first\r\n"));
+          Serial.println(F("Please press \"s\" to enable save first"));
         }
         break;
 
       case 'l':
         //load_confirm = true;
-        Serial.print(F("Load enabled, press \"L\" to load from EEPROM\r\n"));
+        Serial.println(F("Load enabled, press \"L\" to load from EEPROM"));
         break;   
       case 'L':
         if (sdata_last == 'l') {
           eeload();
           //load_confirm = false;
         } else {
-          Serial.print(F("Please press \"l\" to enable load first\r\n"));
+          Serial.println(F("Please press \"l\" to enable load first"));
         }
         break;
 
+      case 'c':
+        pid_on = true;
+        Serial.println(F("PID controller enabled"));
+        break;
+      case 'C':
+        pid_on = false;
+        Serial.println(F("PID controller disabled"));
+        break;       
+
+      case '+':
+        if (pid_on) {
+          Serial.println(F("Disable PID controller first"));
+          break;
+        } 
+        if (pid_output < pid_out_max) {
+          pid_output++;
+          analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
+        }
+        Serial.printf(F("pid_out = %u\r\n"), pid_output);
+        break;
+      case '-':
+        if (pid_on) {
+          Serial.println(F("Disable PID controller first"));
+          break;
+        } 
+        if (pid_output > pid_out_min) {
+          pid_output--;
+          analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
+        }
+        Serial.printf(F("pid_out = %u\r\n"), pid_output);
+        break;
+
+      case 'a':
+        //Serial.println(F("Status:"));
+        Serial.printf(F("\r\nStatus:\r\n"
+                        "rpm_measured = %u\r\n"
+                        "pid_on = %s\r\n"
+                        "pid_setpoint = %u\r\n"
+                        "pid_output = %u\r\n"
+                        "pid_out_min = %u\r\n"
+                        "pid_out_max = %u\r\n"
+                        "pid_kp = %.2f\r\n"
+                        "pid_ki = %.2f\r\n"
+                        "pid_kd = %.2f\r\n"
+                        ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max, pid_kp, pid_ki, pid_kd);
+        break;                        
+      
       case 'h':
-        Serial.print(F("Help:\r\n"
+        Serial.println(F("\r\nHelp:\r\n"
                        "r / R = change target idle rpm\r\n"
                        "b / B = change pwm_out_min\r\n"
                        "t / T = change pwm_out_max\r\n"
                        "p / P / i / I / d / D = change PID configuration\r\n"
+                       "c / C = enable / disable PID controller\r\n"
+                       "+ / - = manual ICV PWM control (PID needs to be disabled first)\r\n"
                        "s / S = save config to EEPROM\r\n"
                        "l / L = load config from EEPROM\r\n"
-                       "h = this help\r\n"));
+                       "a = actual status\r\n"
+                       "h = this help"));
         break;
         
 
