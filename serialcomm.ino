@@ -90,6 +90,7 @@ void checkserial() {
         break;   
       case 'S':
         if (sdata_last == 's') {
+          Serial.println(F("Saving to EEPROM"));
           eesave();
           //write_confirm = false;
         } else {
@@ -103,6 +104,7 @@ void checkserial() {
         break;   
       case 'L':
         if (sdata_last == 'l') {
+          Serial.println(F("Loading from EEPROM"));
           eeload();
           //load_confirm = false;
         } else {

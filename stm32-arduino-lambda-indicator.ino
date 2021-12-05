@@ -110,7 +110,7 @@
   volatile uint32_t pid_debug_cnt = 0;
   uint32_t pid_setpoint = RPM_IDLE;
   double pid_iterm = 0;
-  double pid_lastinput = 0;
+  uint32_t pid_lastinput = 0;
   double pid_kp = PID_KP_DEFAULT;
   double pid_ki = PID_KI_DEFAULT;
   double pid_kd = PID_KD_DEFAULT;
@@ -126,7 +126,7 @@ void pid_compute()
       //do we need to filter the rpm_measured to make sure it is sane?
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
-      double input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
+      uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
 //      if(input == 0) {
 //        //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
@@ -134,11 +134,13 @@ void pid_compute()
 //      }
 
       /*Compute all the working error variables*/
-      double error = pid_setpoint - input;
+      int32_t error = pid_setpoint - input;
+      
       pid_iterm += (pid_ki_internal * error);
       if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
       else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
-      double dInput = (input - pid_lastinput);
+      
+      int32_t dInput = input - pid_lastinput;
  
       /*Compute PID Output*/
       double output = pid_kp_internal * error + pid_iterm - pid_kd_internal * dInput;
@@ -154,7 +156,7 @@ void pid_compute()
       pid_lastinput = input;
 
 //      if (++pid_debug_cnt >= 10) {
-//        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, (int32_t)error, pid_output);
+//        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, error, pid_output);
 //        pid_debug_cnt = 0;
 //      }
 }
