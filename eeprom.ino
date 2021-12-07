@@ -16,7 +16,7 @@ void eesave() {
   unsigned long m1 = millis();
   eeconfig_t eedata;
 
-  eedata.rpm = pid_setpoint;
+  eedata.rpm = rpm_idle;
   eedata.out_min = pid_out_min;
   eedata.out_max = pid_out_max;
   eedata.kp = pid_kp;
@@ -40,7 +40,7 @@ void eeload() {
     return;
   }
   
-  pid_setpoint = eedata.rpm;
+  rpm_idle = eedata.rpm;
   pid_out_min = eedata.out_min;
   pid_out_max = eedata.out_max;
   pid_kp = eedata.kp;

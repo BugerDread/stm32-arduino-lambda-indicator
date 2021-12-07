@@ -7,16 +7,18 @@ void checkserial() {
     sdata = Serial.read();
     switch (sdata) {
       case 'r':
-        if (pid_setpoint < RPM_MAX) {
-          pid_setpoint++;
+        if (rpm_idle < RPM_MAX) {
+          rpm_idle++;
+          pid_setpoint = rpm_idle;
         }
-        Serial.printf(F("idle rpm = %u\r\n"), pid_setpoint);
+        Serial.printf(F("rpm_idle = %u\r\n"), rpm_idle);
         break;
       case 'R':
-        if (pid_setpoint > 0) {
-          pid_setpoint--;
+        if (rpm_idle > 0) { //needs to be 450 or sth like that
+          rpm_idle--;
+          pid_setpoint = rpm_idle;
         }
-        Serial.printf(F("idle rpm = %u\r\n"), pid_setpoint);
+        Serial.printf(F("rpm_idle = %u\r\n"), rpm_idle);
         break;
 
       case 'p':
