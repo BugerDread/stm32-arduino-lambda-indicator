@@ -32,12 +32,15 @@
   //const uint32_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
   const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
-  const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM (motor not running)
+  const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM
   const uint32_t  ICV_PWM_MIN_DEFAULT = 0;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
   const uint32_t  ICV_PWM_MAX_DEFAULT = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
 
   const uint32_t  RPM_IDLE = 750;
-  //const uint32_t  RPM_IDLE_MAX = 1200;    //asi zrusit
+  const uint32_t  RPM_WARMUP = 900;
+  const uint32_t  WARMUP_TIME = 15000;       //warmup time [ms] during that rpm = RPM_WARMUP
+  const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
+  //const uint32_t  RPM_IDLE_MAX = 1200;      //asi zrusit
   const uint32_t  RPM_MAX = 10000;
 
   const double    PID_KP_DEFAULT = 1.5;
@@ -79,6 +82,9 @@
   const uint32_t  ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
 
 //global variables
+  bool engine_running = false;
+  unsigned long engine_last_running = 0;
+  unsigned long engine_started = 0;
   uint32_t battery_voltage, battery_voltage_uncal;
   uint32_t ovp_voltage, ovp_voltage_uncal;
   //uint32_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
@@ -178,21 +184,28 @@ void pid_set_tunings(double Kp, double Ki, double Kd)
 
 void duty_it_capture_rising(void)
 {
+  uint32_t duty = 0;
+  
   duty_capture = rpm_duty_timer->getCaptureCompare(duty_ch_rising);
   /* frequency computation */
   if(duty_capture > duty_last_capture)
   {
     duty_freq_measured = PRM_DUTY_TIMER_IFREQ / (duty_capture - duty_last_capture);
-    duty_cycle_measured = (duty_highstate * 100) / (duty_capture - duty_last_capture);
+    duty = (duty_highstate * 100) / (duty_capture - duty_last_capture);
   }
   else if(duty_capture <= duty_last_capture)
   {
     /* 0x1000 is max overflow value */
     duty_freq_measured = PRM_DUTY_TIMER_IFREQ / (0x10000 + duty_capture - duty_last_capture);
-    duty_cycle_measured = (duty_highstate * 100) / (0x10000 + duty_capture - duty_last_capture); 
+    duty = (duty_highstate * 100) / (0x10000 + duty_capture - duty_last_capture); 
   }
 
-  duty_cycle_measured = 100 - duty_cycle_measured;  //we need to measure duration of "low level" => 100 - duty_cycle_measured
+  if (duty <= 100) {  //check if result is sane, it cannot be < 0 because its unsigned integer
+    duty_cycle_measured = 100 - duty;  //we need to measure duration of "low level" => 100 - duty_cycle_measured
+  } else {
+    duty_cycle_measured = 0;  //we got invalid result, override it with 0
+  }
+  
   duty_last_capture = duty_capture;
   duty_rollover_count = 0;
 }
@@ -273,7 +286,7 @@ void rpm_it_capture(void)
       rpm = PRM_DUTY_TIMER_IFREQ * FREQ_TO_RPM / (0x10000 + rpm_capture - rpm_last_capture);
     }
 
-    if((rpm < RPM_MAX) and (rpm > 0)) {                 //check if the rpm we got makes sense - ignore if its way high (dont even update rpm_measured)
+    if((rpm <= RPM_MAX) and (rpm > 0)) {                 //check if the rpm we got makes sense - ignore if its way high (dont even update rpm_measured)
       //calculate average from 4 last good measurements and rotate the history
       rpm_measured = (rpm + rpm_history[0] + rpm_history[1] + rpm_history[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit
       rpm_history[2] = rpm_history[1];
@@ -434,19 +447,7 @@ void get_ovp() {
 void setup() {
   Serial.begin(115200);
   //while (!Serial);                  //need to be removed, otherwise will not run WO PC :D
-  Serial.print(F("\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\nConfiguration\r\n=============\r\nLED update delay: "));
-  Serial.print(CYCLE_DELAY);
-//  Serial.print(F("ms\r\nSamples avg for serial console: "));
-//  Serial.print(N_AVG);
-  Serial.print(F("\r\nVery lean mixture: "));
-  Serial.print(V_LEAN2);
-  Serial.print(F("mV\r\nLean mixture: "));
-  Serial.print(V_LEAN1);
-  Serial.print(F("mV\r\nRich mixture: "));
-  Serial.print(V_RICH1);
-  Serial.print(F("mV\r\nVery rich mixture: "));
-  Serial.print(V_RICH2);
-  Serial.print(F("mV\r\n\r\nLCD init "));
+  Serial.print(F("\r\n\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\n"));
 
   lcd_init();
   
@@ -463,11 +464,11 @@ void setup() {
   analogWriteFrequency(ICV_PWM_FREQ);          //100Hz
   analogWriteResolution(ICV_PWM_BITS);          //we have 16bit timers so use them or not?
   pinMode(ICV_PWM_OUT, OUTPUT);               //ICV PWM signal
-  analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);             //16% ------- 6553500 = 100%
+  analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);           
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
-  digitalWrite(LED_LEAN2, LOW);
+  digitalWrite(LED_LEAN2, HIGH);
   pinMode(LED_LEAN1, OUTPUT);
   digitalWrite(LED_LEAN1, HIGH);
   pinMode(LED_RIGHT, OUTPUT);
@@ -480,31 +481,60 @@ void setup() {
   digitalWrite(LED_ONBOARD, HIGH);
   
   //do some fancy fx with LEDs on boot
-  delay(250);
-  digitalWrite(LED_LEAN2, HIGH);
-  digitalWrite(LED_LEAN1, LOW);
-  delay(250);
-  digitalWrite(LED_LEAN1, HIGH);
-  digitalWrite(LED_RIGHT, LOW);
-  delay(250);
-  digitalWrite(LED_RIGHT, HIGH);
-  digitalWrite(LED_RICH1, LOW);
-  delay(250);
-  digitalWrite(LED_RICH1, HIGH);
-  digitalWrite(LED_RICH2, LOW);
-  delay(750);
+//  delay(250);
+//  digitalWrite(LED_LEAN2, HIGH);
+//  digitalWrite(LED_LEAN1, LOW);
+//  delay(250);
+//  digitalWrite(LED_LEAN1, HIGH);
+//  digitalWrite(LED_RIGHT, LOW);
+//  delay(250);
+//  digitalWrite(LED_RIGHT, HIGH);
+//  digitalWrite(LED_RICH1, LOW);
+//  delay(250);
+//  digitalWrite(LED_RICH1, HIGH);
+//  digitalWrite(LED_RICH2, LOW);
+//  delay(750);
 
   vref_value = analogRead(AVREF);
 
   eeload();
+  pid_set_tunings(pid_kp, pid_ki, pid_kd); //0.2, 0.1, 0
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
-  pid_set_tunings(pid_kp, pid_ki, pid_kd); //0.2, 0.1, 0
+  
   //Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
 }
 
 unsigned long loop_last_millis = 0;
+
+void check_engine_running() {
+  //find out if engine is running or not
+  //engine is not running if there is no rpm signal (rpm = 0) for ENGINE_TIMEOUT [s]
+  if (rpm_measured == 0) {
+    if (engine_running and ((millis() - engine_last_running) > ENGINE_TIMEOUT)) {
+      //engine has stopped
+      engine_running = false;
+      Serial.println(F("Engine stopped"));
+    }
+  } else {
+    if (!engine_running) {
+      //engine has been just started
+      engine_started = millis();
+      engine_running = true;
+      pid_setpoint = RPM_WARMUP;
+      Serial.println(F("Engine started"));
+    }
+    //engine running
+    engine_last_running = millis();
+
+    if ((pid_setpoint != RPM_IDLE) and ((engine_last_running - engine_started) > WARMUP_TIME)) {    //engine_last_running used because we assgned millis() to it one line above
+      //warmup is over
+      pid_setpoint = RPM_IDLE;  //RPM_IDLE needs to be changed to value saved in eeprom and renamed to RPM_IDLE_DEFAULT
+    }
+    
+  }
+}
 
 void loop() {
   if ((millis() - loop_last_millis) > CYCLE_DELAY) {
@@ -513,5 +543,7 @@ void loop() {
     get_ovp();
     showvalues();
   }
+
   checkserial();
+  check_engine_running();
 }
