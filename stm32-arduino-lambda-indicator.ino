@@ -471,7 +471,7 @@ void setup() {
 
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
-  digitalWrite(LED_LEAN2, HIGH);
+  digitalWrite(LED_LEAN2, LOW);
   pinMode(LED_LEAN1, OUTPUT);
   digitalWrite(LED_LEAN1, HIGH);
   pinMode(LED_RIGHT, OUTPUT);
@@ -484,19 +484,19 @@ void setup() {
   digitalWrite(LED_ONBOARD, HIGH);
   
   //do some fancy fx with LEDs on boot
-//  delay(250);
-//  digitalWrite(LED_LEAN2, HIGH);
-//  digitalWrite(LED_LEAN1, LOW);
-//  delay(250);
-//  digitalWrite(LED_LEAN1, HIGH);
-//  digitalWrite(LED_RIGHT, LOW);
-//  delay(250);
-//  digitalWrite(LED_RIGHT, HIGH);
-//  digitalWrite(LED_RICH1, LOW);
-//  delay(250);
-//  digitalWrite(LED_RICH1, HIGH);
-//  digitalWrite(LED_RICH2, LOW);
-//  delay(750);
+  delay(250);
+  digitalWrite(LED_LEAN2, HIGH);
+  digitalWrite(LED_LEAN1, LOW);
+  delay(250);
+  digitalWrite(LED_LEAN1, HIGH);
+  digitalWrite(LED_RIGHT, LOW);
+  delay(250);
+  digitalWrite(LED_RIGHT, HIGH);
+  digitalWrite(LED_RICH1, LOW);
+  delay(250);
+  digitalWrite(LED_RICH1, HIGH);
+  digitalWrite(LED_RICH2, LOW);
+  delay(500);
 
   vref_value = analogRead(AVREF);
 

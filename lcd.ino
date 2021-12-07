@@ -99,30 +99,30 @@ void drawbasicscreen() {
   tft.print(F("Battery"));
   tft.drawFastHLine(LINE_X, BATTERY_LINE_Y, LINE_LEN, LINE_COLOR);
 
-  //lambda
-  tft.setCursor(TXT_X, LAMBDA_TXT_Y);
-  tft.print(F("Lambda"));
-  tft.drawFastHLine(LINE_X, LAMBDA_LINE_Y, LINE_LEN, LINE_COLOR);
-  
   //OVP
   tft.setCursor(TXT_X, OVP_TXT_Y);
   tft.print(F("OVP relay"));
   tft.drawFastHLine(LINE_X, OVP_LINE_Y, LINE_LEN, LINE_COLOR);
+
+  //lambda
+  tft.setCursor(TXT_X, LAMBDA_TXT_Y);
+  tft.print(F("Lambda"));
+  tft.drawFastHLine(LINE_X, LAMBDA_LINE_Y, LINE_LEN, LINE_COLOR);
 
   //RPM
   tft.setCursor(TXT_X, RPM_TXT_Y);
   tft.print(F("RPM"));
   tft.drawFastHLine(LINE_X, RPM_LINE_Y, LINE_LEN, LINE_COLOR);
 
-  //duty
-  tft.setCursor(TXT_X, DUTY_TXT_Y);
-  tft.print(F("CIS duty"));
-  tft.drawFastHLine(LINE_X, DUTY_LINE_Y, LINE_LEN, LINE_COLOR);
-
   //ICV
   tft.setCursor(TXT_X, ICV_TXT_Y);
   tft.print(F("ICV PWM"));
   tft.drawFastHLine(LINE_X, ICV_LINE_Y, LINE_LEN, LINE_COLOR);
+
+  //CIS-duty
+  tft.setCursor(TXT_X, DUTY_TXT_Y);
+  tft.print(F("CIS duty"));
+  tft.drawFastHLine(LINE_X, DUTY_LINE_Y, LINE_LEN, LINE_COLOR);
 
 //  //LPG (or whatever else)
 //  tft.setCursor(TXT_X, LPG_TXT_Y);
@@ -158,20 +158,6 @@ void showvalues() {
   tft.setCursor(VAL1_X, BATTERY_TXT_Y);
   tft.printf(F("%6.2fV"), (float)battery_voltage / 1000); 
   drawchart(BATTERY_TXT_Y, battery_voltage, V_BATT_FAIL, V_BATT_HIGH);
-//  tft.setCursor(VAL2_X, BATTERY_TXT_Y);
-//  if (battery_voltage < V_BATT_FAIL) {
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.print(F(" FAIL "));
-//  } else if (battery_voltage < V_BATT_LOW) {
-//    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//    tft.print(F(" LOW  "));
-//  } else if (battery_voltage >= V_BATT_HIGH) {
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.print(F(" HIGH "));
-//  } else {
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.print(F("  OK  "));
-//  }
 
   //ovp
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -179,48 +165,11 @@ void showvalues() {
   tft.printf(F("%6.2fV"), (float)ovp_voltage / 1000);
   drawchart(OVP_TXT_Y, ovp_voltage, V_BATT_FAIL, V_BATT_HIGH);
   
-//  //status
-//  tft.setCursor(VAL2_X, OVP_TXT_Y);
-//  if((ovp_voltage + 500) >= battery_voltage) {
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.print(F("  OK  "));
-//  } else {
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.print(F(" FAIL "));
-//  }
-
   //lambda
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, LAMBDA_TXT_Y);
   tft.printf(F("%5umV"), lambda_voltage);
-  drawchart(LAMBDA_TXT_Y, lambda_voltage, V_LEAN2, V_RICH2);
-    
-//  if (lambda_voltage <= V_LEAN2) {
-//    //very lean
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-//    tft.print(F("V-LEAN"));
-//  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
-//    //lean
-//    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-//    tft.print(F(" LEAN "));
-//  } else if((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
-//    //right
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-//    tft.print(F(" GOOD "));
-//  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
-//    //rich
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-//    tft.print(F(" RICH "));
-//  } else if(V_RICH2 <= lambda_voltage) {
-//    //very rich
-//    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//    tft.setCursor(VAL2_X, LAMBDA_TXT_Y);
-//    tft.print(F("V-RICH"));
-//  }      
+  drawchart(LAMBDA_TXT_Y, lambda_voltage, V_LEAN2, V_RICH2);   
 
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -232,22 +181,7 @@ void showvalues() {
   } else {
     tft.printf(F("%7u"), rpm_measured);
   }
-    
-  
-    
-
   drawchart(RPM_TXT_Y, rpm_measured, RPM_MIN, (rpm_idle * 2) - RPM_MIN);
-//  tft.setCursor(VAL2_X, RPM_TXT_Y);
-//  if(rpm_measured == 0) {
-//    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//    tft.print(F(" STOP "));
-//  } else if(rpm_measured > RPM_MAX) {
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.print(F(" HIGH "));
-//  } else {
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.print(F("  OK  "));
-//  }
 
   //ICV pwm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -255,55 +189,12 @@ void showvalues() {
   tft.printf(F("%7u"), pid_output);
   drawchart(ICV_TXT_Y, pid_output, pid_out_min, pid_out_max);
   
-//  uint32_t chart_y = pid_output * (TEXT_H + (2 * SPACER) - 2) / pid_out_max;
-//    
-//  tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y - SPACER + 1, TEXT_H + (2 * SPACER) -1, ST77XX_BLACK);
-//  tft.drawPixel(VAL2_X + chart_x, ICV_TXT_Y + TEXT_H + SPACER - 1 - chart_y, ST77XX_WHITE);  //
-//  if ((++chart_x + VAL2_X) >= 160) {
-//    chart_x = 0;
-//  }
-//  tft.drawFastVLine(VAL2_X + chart_x, ICV_TXT_Y - SPACER + 1, TEXT_H + (2 * SPACER) -1, ST77XX_YELLOW);
-  
-//  tft.setCursor(VAL2_X, ICV_TXT_Y);
-//  if((pid_output > ICV_PWM_MIN) and (pid_output < ICV_PWM_MAX)) {
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.print(F("  OK  "));
-//  } else {
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//    tft.print(F(" WARN "));
-//  } 
-
   //CIS duty
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, DUTY_TXT_Y);
   tft.printf(F("%6u%%"), duty_cycle_measured);
   drawchart(DUTY_TXT_Y, duty_cycle_measured, DUTY_FAIL_LOW, DUTY_FAIL_HIGH);
   
-//  tft.setCursor(VAL2_X, DUTY_TXT_Y);
-//  if ((duty_cycle_measured > DUTY_FAIL_HIGH) or (duty_cycle_measured < DUTY_FAIL_LOW)) {
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.print(F(" FAIL ")); 
-//  } else if((duty_freq_measured > DUTY_FREQ_HIGH) or (duty_freq_measured < DUTY_FREQ_LOW)) {
-//    //bad freq, should be 100Hz
-//    tft.setTextColor(FAIL_VAL_TXT_COLOR, FAIL_VAL_BGR_COLOR );
-//    tft.print(F(" FREQ "));
-//  } else if((duty_cycle_measured >= DUTY_WARN_HIGH) or (duty_cycle_measured <= DUTY_WARN_LOW)) {
-//    tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//    tft.print(F(" WARN "));
-//  } else {
-//    tft.setTextColor(GOOD_VAL_TXT_COLOR, GOOD_VAL_BGR_COLOR );
-//    tft.print(F("  OK  "));
-//  }
-
-//  //LPG
-//  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-//  tft.setCursor(VAL1_X, LPG_TXT_Y);
-//  tft.printf(F("%5u%%"), 10);
-//  tft.setTextColor(WARN_VAL_TXT_COLOR, WARN_VAL_BGR_COLOR );
-//  tft.setCursor(VAL2_X, LPG_TXT_Y);
-//  tft.print(F(" WARN "));  
-//
-
   if ((++chart_x + VAL2_X) >= 160) {
     chart_x = 0;
   }
