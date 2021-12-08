@@ -34,7 +34,7 @@
   const uint8_t LPG_LINE_Y = LPG_TXT_Y + TEXT_H + SPACER;
   const uint8_t TXT_X = 0;
   const uint8_t LINE_X = 0;
-  const uint8_t LINE_LEN = 160;
+  const uint8_t LCD_W = 160;
   const uint16_t LINE_COLOR = 0x528A;
   const uint16_t BACKGROUND_COLOR = ST77XX_BLACK;
   const uint16_t HEADER_COLOR = ST77XX_BLUE;
@@ -81,14 +81,14 @@ void drawbasicscreen() {
   tft.setTextSize(2);
   tft.setTextWrap(false);
 
-  tft.drawFastHLine(0, 0, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 1, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 2, 160, LINE_COLOR); //0x3186);
+  tft.drawFastHLine(LINE_X, 0, LCD_W, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, 1, LCD_W, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, 2, LCD_W, LINE_COLOR);
   tft.setCursor(3, 5);
   tft.print(F("MERCEDES-PILL"));
-  tft.drawFastHLine(0, 20, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 21, 160, LINE_COLOR); //0x3186);
-  tft.drawFastHLine(0, 22, 160, LINE_COLOR); //0x3186);
+  tft.drawFastHLine(LINE_X, 20, LCD_W, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, 21, LCD_W, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, 22, LCD_W, LINE_COLOR);
 
   //switch to draw parametters
   tft.setTextSize(1);
@@ -97,37 +97,37 @@ void drawbasicscreen() {
   //battery
   tft.setCursor(TXT_X, BATTERY_TXT_Y);
   tft.print(F("Battery"));
-  tft.drawFastHLine(LINE_X, BATTERY_LINE_Y, LINE_LEN, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, BATTERY_LINE_Y, LCD_W, LINE_COLOR);
 
   //OVP
   tft.setCursor(TXT_X, OVP_TXT_Y);
   tft.print(F("OVP relay"));
-  tft.drawFastHLine(LINE_X, OVP_LINE_Y, LINE_LEN, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, OVP_LINE_Y, LCD_W, LINE_COLOR);
 
   //lambda
   tft.setCursor(TXT_X, LAMBDA_TXT_Y);
   tft.print(F("Lambda"));
-  tft.drawFastHLine(LINE_X, LAMBDA_LINE_Y, LINE_LEN, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, LAMBDA_LINE_Y, LCD_W, LINE_COLOR);
 
   //RPM
   tft.setCursor(TXT_X, RPM_TXT_Y);
   tft.print(F("RPM"));
-  tft.drawFastHLine(LINE_X, RPM_LINE_Y, LINE_LEN, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, RPM_LINE_Y, LCD_W, LINE_COLOR);
 
   //ICV
   tft.setCursor(TXT_X, ICV_TXT_Y);
   tft.print(F("ICV PWM"));
-  tft.drawFastHLine(LINE_X, ICV_LINE_Y, LINE_LEN, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, ICV_LINE_Y, LCD_W, LINE_COLOR);
 
   //CIS-duty
   tft.setCursor(TXT_X, DUTY_TXT_Y);
   tft.print(F("CIS duty"));
-  tft.drawFastHLine(LINE_X, DUTY_LINE_Y, LINE_LEN, LINE_COLOR);
+  tft.drawFastHLine(LINE_X, DUTY_LINE_Y, LCD_W, LINE_COLOR);
 
 //  //LPG (or whatever else)
 //  tft.setCursor(TXT_X, LPG_TXT_Y);
 //  tft.print(F("LPG tank"));
-//  tft.drawFastHLine(LINE_X, LPG_LINE_Y, LINE_LEN, LINE_COLOR);
+//  tft.drawFastHLine(LINE_X, LPG_LINE_Y, LCD_W, LINE_COLOR);
 }  
 
 void drawchart(uint32_t pos_y, uint32_t value, uint32_t value_min, uint32_t value_max) {
@@ -143,7 +143,7 @@ void drawchart(uint32_t pos_y, uint32_t value, uint32_t value_min, uint32_t valu
   tft.drawFastVLine(VAL2_X + chart_x, pos_y - SPACER + 1, TEXT_H + (2 * SPACER) -1, ST77XX_BLACK);
   tft.drawPixel(VAL2_X + chart_x, pos_y + TEXT_H + SPACER - 1 - chart_y, ST77XX_WHITE);  //
   
-  if ((chart_x + VAL2_X + 1) >= 160) {
+  if ((chart_x + VAL2_X + 1) >= LCD_W) {
     tft.drawFastVLine(VAL2_X, pos_y - SPACER + 1, TEXT_H + (2 * SPACER) -1, ST77XX_YELLOW);
   } else {
     tft.drawFastVLine(VAL2_X + chart_x + 1, pos_y - SPACER + 1, TEXT_H + (2 * SPACER) -1, ST77XX_YELLOW);
@@ -195,7 +195,7 @@ void showvalues() {
   tft.printf(F("%6u%%"), duty_cycle_measured);
   drawchart(DUTY_TXT_Y, duty_cycle_measured, DUTY_FAIL_LOW, DUTY_FAIL_HIGH);
   
-  if ((++chart_x + VAL2_X) >= 160) {
+  if ((++chart_x + VAL2_X) >= LCD_W) {
     chart_x = 0;
   }
 

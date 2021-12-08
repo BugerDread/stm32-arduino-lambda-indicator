@@ -8,8 +8,7 @@ struct eeconfig_t {
 };
 
 double eesum (struct eeconfig_t eedata) {
-  return ((eedata.kp + eedata.ki + eedata.kd + \
-          eedata.rpm + eedata.out_min + eedata.out_max) * MAGIC_CONSTANT);
+  return (eedata.kp + eedata.ki + eedata.kd + eedata.rpm + eedata.out_min + eedata.out_max + MAGIC_CONSTANT);
 }
 
 void eesave() {
@@ -36,7 +35,7 @@ void eeload() {
   EEPROM.get(0, eedata);
 
   if (eedata.sum != eesum(eedata)) {
-    Serial.print(F("Invalid checksum, can\'t load EEPROM data\r\n"));
+    Serial.print(F("Invalid checksum, can\'t load EEPROM data, FLASH defaults will be used\r\n"));
     return;
   }
   

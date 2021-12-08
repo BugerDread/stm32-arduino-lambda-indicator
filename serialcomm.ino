@@ -14,7 +14,7 @@ void checkserial() {
         Serial.printf(F("rpm_idle = %u\r\n"), rpm_idle);
         break;
       case 'R':
-        if (rpm_idle > 0) { //needs to be 450 or sth like that
+        if (rpm_idle > RPM_MIN) {
           rpm_idle--;
           pid_setpoint = rpm_idle;
         }
@@ -174,8 +174,6 @@ void checkserial() {
                        "a = actual status\r\n"
                        "h = this help"));
         break;
-        
-
     }
     
     if ((sdata != '\r') or (sdata != '\n')) {

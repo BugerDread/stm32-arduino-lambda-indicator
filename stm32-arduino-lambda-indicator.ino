@@ -33,20 +33,20 @@
   const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
   const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM
-  const uint32_t  ICV_PWM_MIN_DEFAULT = 0;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
+  const uint32_t  ICV_PWM_MIN_DEFAULT = 78;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
   const uint32_t  ICV_PWM_MAX_DEFAULT = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
 
   const uint32_t  RPM_IDLE_DEFAULT = 750;
-  const uint32_t  RPM_WARMUP = 900;
-  const uint32_t  WARMUP_TIME = 15000;       //warmup time [ms] during that rpm = RPM_WARMUP
+  const uint32_t  RPM_WARMUP = 1250;
+  const uint32_t  WARMUP_TIME = 30000;       //warmup time [ms] during that rpm = RPM_WARMUP
   const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
   //const uint32_t  RPM_IDLE_MAX = 1200;      //asi zrusit
   const uint32_t  RPM_MAX = 10000;
   const uint32_t  RPM_MIN = 500;
 
-  const double    PID_KP_DEFAULT = 1.5;
-  const double    PID_KI_DEFAULT = 2;
-  const double    PID_KD_DEFAULT = 0;
+  const double    PID_KP_DEFAULT = 1.0;
+  const double    PID_KI_DEFAULT = 1.0;
+  const double    PID_KD_DEFAULT = 0.0;
                                               
   const uint32_t  DUTY_FAIL_LOW = 10;
   const uint32_t  DUTY_FAIL_HIGH = 90;
@@ -66,10 +66,10 @@
   //analog inputs calibration
   const uint32_t  LAMBDA_CAL_IN = 629;
   const uint32_t  LAMBDA_CAL_READ = 1870;
-  const uint32_t  VBATT_CAL_IN = 12090;  //real input voltage (read by multimeter)
-  const uint32_t  VBATT_CAL_READ = 2288; //uncal voltage (shown in serial debug)
-  const uint32_t  OVP_CAL_IN = 11670;   //
-  const uint32_t  OVP_CAL_READ = 2194;  //
+  const uint32_t  VBATT_CAL_IN = 12370;  //real input voltage (read by multimeter)
+  const uint32_t  VBATT_CAL_READ = 2342; //uncal voltage (shown in serial debug)
+  const uint32_t  OVP_CAL_IN = 12370;   //
+  const uint32_t  OVP_CAL_READ = 2319;  //
   //const uint32_t  ICV_CAL_IN = 4520;   //not calibrated yet
   //const uint32_t  ICV_CAL_READ = 801;  //not calibrated yet
 
@@ -416,8 +416,8 @@ void lambda() {
 
 void get_battery() {
   //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-  battery_voltage_uncal = (((uint32_t)battery_raw * V_REFI) / vref_value);
-  battery_voltage = ((uint32_t)battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_READ;
+  battery_voltage_uncal = ((battery_raw * V_REFI) / vref_value);
+  battery_voltage = (battery_voltage_uncal * VBATT_CAL_IN) / VBATT_CAL_READ;
 #ifdef SDEBUG
   Serial.printf("Vbatt = %umV\r\nVbatt_uncal = %umV\r\n", battery_voltage, battery_voltage_uncal);
 #endif
@@ -425,8 +425,8 @@ void get_battery() {
 
 void get_ovp() {
   //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-  ovp_voltage_uncal = (((uint32_t)ovp_raw * V_REFI) / vref_value);
-  ovp_voltage = ((uint32_t)ovp_voltage_uncal * OVP_CAL_IN) / OVP_CAL_READ;
+  ovp_voltage_uncal = ((ovp_raw * V_REFI) / vref_value);
+  ovp_voltage = (ovp_voltage_uncal * OVP_CAL_IN) / OVP_CAL_READ;
 #ifdef SDEBUG
   Serial.printf("OVP = %umV\r\nOVP_uncal = %umV\r\n", ovp_voltage, ovp_voltage_uncal);
 #endif  
