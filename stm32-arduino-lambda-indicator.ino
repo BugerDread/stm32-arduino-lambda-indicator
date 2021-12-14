@@ -22,9 +22,9 @@
   //general
   const uint32_t  V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
   const uint32_t  V_LEAN2 = 100;       //very lean mixture voltage [mV]
-  const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
-  const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
-  const uint32_t  V_RICH2 = 800;       //very rich mixture voltage [mV]
+//  const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
+//  const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
+  const uint32_t  V_RICH2 = 700;       //very rich mixture voltage [mV]
   const uint32_t  CYCLE_DELAY = 100;    //delay for each round [ms]
   const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
   const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
@@ -388,7 +388,7 @@ void lambda() {
 //    digitalWrite(LED_RICH1, HIGH);
 //    digitalWrite(LED_RICH2, HIGH);
     
-  } else if((lambda_voltage > V_LEAN1) and (lambda_voltage < V_RICH1)) {
+  } else if((lambda_voltage > V_LEAN2) and (lambda_voltage < V_RICH2)) {
     //right
     digitalWrite(LED_LEAN2, HIGH);
 //    digitalWrite(LED_LEAN1, HIGH);
