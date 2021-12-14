@@ -101,7 +101,7 @@ void drawbasicscreen() {
 
   //OVP
   tft.setCursor(TXT_X, OVP_TXT_Y);
-  tft.print(F("OVP relay"));
+  tft.print(F("AUX IN"));
   tft.drawFastHLine(LINE_X, OVP_LINE_Y, LCD_W, LINE_COLOR);
 
   //lambda

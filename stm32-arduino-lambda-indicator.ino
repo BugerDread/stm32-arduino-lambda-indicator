@@ -74,10 +74,10 @@
   //const uint32_t  ICV_CAL_READ = 801;  //not calibrated yet
 
   //outputs
-  const uint32_t  LED_LEAN2 = PA8;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
-  const uint32_t  LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
-  const uint32_t  LED_RIGHT = PB14;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
-  const uint32_t  LED_RICH1 = PB13;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
+  const uint32_t  LED_LEAN2 = PB14;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
+  //const uint32_t  LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
+  const uint32_t  LED_RIGHT = PB13;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
+  //const uint32_t  LED_RICH1 = PA8;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
   const uint32_t  LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
   const uint32_t  LED_ONBOARD = PC13;  //LED on the bluepill board
   const uint32_t  ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
@@ -375,41 +375,41 @@ void lambda() {
   if(lambda_voltage <= V_LEAN2) {
     //very lean
     digitalWrite(LED_LEAN2, LOW);
-    digitalWrite(LED_LEAN1, HIGH);
+//    digitalWrite(LED_LEAN1, HIGH);
     digitalWrite(LED_RIGHT, HIGH);
-    digitalWrite(LED_RICH1, HIGH);
+//    digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, HIGH);
     
-  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
-    //lean
-    digitalWrite(LED_LEAN2, HIGH);
-    digitalWrite(LED_LEAN1, LOW);
-    digitalWrite(LED_RIGHT, HIGH);
-    digitalWrite(LED_RICH1, HIGH);
-    digitalWrite(LED_RICH2, HIGH);
+//  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
+//    //lean
+//    digitalWrite(LED_LEAN2, HIGH);
+//    digitalWrite(LED_LEAN1, LOW);
+//    digitalWrite(LED_RIGHT, HIGH);
+//    digitalWrite(LED_RICH1, HIGH);
+//    digitalWrite(LED_RICH2, HIGH);
     
-  } else if((V_LEAN1 < lambda_voltage) and (lambda_voltage < V_RICH1)) {
+  } else if((lambda_voltage > V_LEAN1) and (lambda_voltage < V_RICH1)) {
     //right
     digitalWrite(LED_LEAN2, HIGH);
-    digitalWrite(LED_LEAN1, HIGH);
+//    digitalWrite(LED_LEAN1, HIGH);
     digitalWrite(LED_RIGHT, LOW);
-    digitalWrite(LED_RICH1, HIGH);
+//    digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, HIGH);
     
-  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
-    //rich
-    digitalWrite(LED_LEAN2, HIGH);
-    digitalWrite(LED_LEAN1, HIGH);
-    digitalWrite(LED_RIGHT, HIGH);
-    digitalWrite(LED_RICH1, LOW);
-    digitalWrite(LED_RICH2, HIGH);
+//  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
+//    //rich
+//    digitalWrite(LED_LEAN2, HIGH);
+//    digitalWrite(LED_LEAN1, HIGH);
+//    digitalWrite(LED_RIGHT, HIGH);
+//    digitalWrite(LED_RICH1, LOW);
+//    digitalWrite(LED_RICH2, HIGH);
     
-  } else if(V_RICH2 <= lambda_voltage) {
+  } else if(lambda_voltage >= V_RICH2) {
     //very rich
     digitalWrite(LED_LEAN2, HIGH);
-    digitalWrite(LED_LEAN1, HIGH);
+//    digitalWrite(LED_LEAN1, HIGH);
     digitalWrite(LED_RIGHT, HIGH);
-    digitalWrite(LED_RICH1, HIGH);
+//    digitalWrite(LED_RICH1, HIGH);
     digitalWrite(LED_RICH2, LOW);
   }
 }
@@ -472,29 +472,29 @@ void setup() {
   //init LED pins
   pinMode(LED_LEAN2, OUTPUT);
   digitalWrite(LED_LEAN2, LOW);
-  pinMode(LED_LEAN1, OUTPUT);
-  digitalWrite(LED_LEAN1, HIGH);
+//  pinMode(LED_LEAN1, OUTPUT);
+//  digitalWrite(LED_LEAN1, HIGH);
   pinMode(LED_RIGHT, OUTPUT);
   digitalWrite(LED_RIGHT, HIGH);
-  pinMode(LED_RICH1, OUTPUT);
-  digitalWrite(LED_RICH1, HIGH);
+//  pinMode(LED_RICH1, OUTPUT);
+//  digitalWrite(LED_RICH1, HIGH);
   pinMode(LED_RICH2, OUTPUT);
   digitalWrite(LED_RICH2, HIGH);
   pinMode(LED_ONBOARD, OUTPUT);
   digitalWrite(LED_ONBOARD, HIGH);
   
   //do some fancy fx with LEDs on boot
+//  delay(250);
+//  digitalWrite(LED_LEAN2, HIGH);
+//  digitalWrite(LED_LEAN1, LOW);
   delay(250);
   digitalWrite(LED_LEAN2, HIGH);
-  digitalWrite(LED_LEAN1, LOW);
-  delay(250);
-  digitalWrite(LED_LEAN1, HIGH);
   digitalWrite(LED_RIGHT, LOW);
+//  delay(250);
+//  digitalWrite(LED_RIGHT, HIGH);
+//  digitalWrite(LED_RICH1, LOW);
   delay(250);
   digitalWrite(LED_RIGHT, HIGH);
-  digitalWrite(LED_RICH1, LOW);
-  delay(250);
-  digitalWrite(LED_RICH1, HIGH);
   digitalWrite(LED_RICH2, LOW);
   delay(500);
 
