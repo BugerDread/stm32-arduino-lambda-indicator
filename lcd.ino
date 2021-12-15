@@ -157,19 +157,19 @@ void showvalues() {
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, BATTERY_TXT_Y);
   tft.printf(F("%6.2fV"), (float)battery_voltage / 1000); 
-  drawchart(BATTERY_TXT_Y, battery_voltage, V_BATT_FAIL, V_BATT_HIGH);
+  drawchart(BATTERY_TXT_Y, battery_voltage, V_BATT_LOW, V_BATT_HIGH);
 
   //ovp
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, OVP_TXT_Y);
   tft.printf(F("%6.2fV"), (float)ovp_voltage / 1000);
-  drawchart(OVP_TXT_Y, ovp_voltage, V_BATT_FAIL, V_BATT_HIGH);
+  drawchart(OVP_TXT_Y, ovp_voltage, V_BATT_LOW, V_BATT_HIGH);
   
   //lambda
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, LAMBDA_TXT_Y);
   tft.printf(F("%5umV"), lambda_voltage);
-  drawchart(LAMBDA_TXT_Y, lambda_voltage, V_LEAN2, V_RICH2);   
+  drawchart(LAMBDA_TXT_Y, lambda_voltage, V_LEAN, V_RICH);   
 
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
@@ -193,7 +193,7 @@ void showvalues() {
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, DUTY_TXT_Y);
   tft.printf(F("%6u%%"), duty_cycle_measured);
-  drawchart(DUTY_TXT_Y, duty_cycle_measured, DUTY_FAIL_LOW, DUTY_FAIL_HIGH);
+  drawchart(DUTY_TXT_Y, duty_cycle_measured, DUTY_LOW, DUTY_HIGH);
   
   if ((++chart_x + VAL2_X) >= LCD_W) {
     chart_x = 0;

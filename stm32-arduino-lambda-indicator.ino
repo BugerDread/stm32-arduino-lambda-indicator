@@ -20,27 +20,22 @@
 //constants
 //it does not make a sense to make integers smaller than 32b
   //general
-  const uint32_t  V_REFI = 1208;       //STM32F103 internal reference voltage [mV]
-  const uint32_t  V_LEAN2 = 100;       //very lean mixture voltage [mV]
-//  const uint32_t  V_LEAN1 = 200;       //lean mixture voltage [mV]
-//  const uint32_t  V_RICH1 = 700;       //rich mixture voltage [mV]
-  const uint32_t  V_RICH2 = 700;       //very rich mixture voltage [mV]
-  const uint32_t  CYCLE_DELAY = 100;    //delay for each round [ms]
-  const uint32_t  V_BATT_FAIL = 11000; //voltage [mV] below that battery is FAILED
-  const uint32_t  V_BATT_LOW = 12500; //voltage [mV] below that battery is LOW
-  const uint32_t  V_BATT_HIGH = 14600; //voltage [mV] below that battery is HIGH
-  //const uint32_t  ICV_VOLTAGE_MIN = 3900;  //minimum ICV voltage, if lower error is shown
-  const uint32_t  ICV_PWM_BITS = 8;     //number of bits of ICV PWM
-  const uint32_t  ICV_PWM_FREQ = 100;      //ICV PWM frequency
-  const uint32_t  ICV_PWM_DEFAULT = 127;    //initial value of ICV PWM
-  const uint32_t  ICV_PWM_MIN_DEFAULT = 78;          //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
-  const uint32_t  ICV_PWM_MAX_DEFAULT = 255;        //cca 200 - maximum ICV PWM out during regulation (usually full range)
+  const uint32_t  V_REFI = 1208;              //STM32F103 internal reference voltage [mV]
+  const uint32_t  V_LEAN = 100;               //very lean mixture voltage [mV]
+  const uint32_t  V_RICH = 700;               //very rich mixture voltage [mV]
+  const uint32_t  CYCLE_DELAY = 100;          //delay for each round [ms]
+  const uint32_t  V_BATT_LOW = 11000;         //battery voltage [mV] bottom level (for chart)
+  const uint32_t  V_BATT_HIGH = 14600;        //battery voltage [mV] top level (for chart)
+  const uint32_t  ICV_PWM_BITS = 8;           //number of bits of ICV PWM
+  const uint32_t  ICV_PWM_FREQ = 100;         //ICV PWM frequency
+  const uint32_t  ICV_PWM_DEFAULT = 127;      //initial value of ICV PWM
+  const uint32_t  ICV_PWM_MIN_DEFAULT = 78;   //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
+  const uint32_t  ICV_PWM_MAX_DEFAULT = 255;  //cca 200 - maximum ICV PWM out during regulation (usually full range)
 
   const uint32_t  RPM_IDLE_DEFAULT = 750;
   const uint32_t  RPM_WARMUP = 1250;
-  const uint32_t  WARMUP_TIME = 30000;       //warmup time [ms] during that rpm = RPM_WARMUP
+  const uint32_t  WARMUP_TIME = 30000;        //warmup time [ms] during that rpm = RPM_WARMUP
   const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
-  //const uint32_t  RPM_IDLE_MAX = 1200;      //asi zrusit
   const uint32_t  RPM_MAX = 10000;
   const uint32_t  RPM_MIN = 500;
 
@@ -48,39 +43,30 @@
   const double    PID_KI_DEFAULT = 1.0;
   const double    PID_KD_DEFAULT = 0.0;
                                               
-  const uint32_t  DUTY_FAIL_LOW = 10;
-  const uint32_t  DUTY_FAIL_HIGH = 90;
-  const uint32_t  DUTY_WARN_LOW = 30;
-  const uint32_t  DUTY_WARN_HIGH = 70;
-  const uint32_t  DUTY_FREQ_LOW = 90;
-  const uint32_t  DUTY_FREQ_HIGH = 110;
+  const uint32_t  DUTY_LOW = 10;
+  const uint32_t  DUTY_HIGH = 90;
   
   //inputs
-  const uint32_t  LAMBDA_INPUT = A3;   //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
-  const uint32_t  BATT_INPUT = A0;     //battery voltage input
-  const uint32_t  OVP_INPUT = A1;      //OVP voltage input
-  //const uint32_t  ICV_INPUT = A2;      //ICV voltage input
-  const uint32_t  DUTY_INPUT = PB9;    //duty cycle input - these two needs to share same hw timer but different channel pair
-  const uint32_t  RPM_INPUT = PB7;     //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
+  const uint32_t  LAMBDA_INPUT = A3;          //lambda sensor voltage input pin (rich >= ~0.7V, lean <= ~0.2V)
+  const uint32_t  BATT_INPUT = A0;            //battery voltage input, now from OVP
+  const uint32_t  OVP_INPUT = A1;             //this was OVP voltage input, now its AUX in voltage as we power this from OVP, will see how we use it, maybe LPG tank meter
+  const uint32_t  DUTY_INPUT = PB9;           //duty cycle input - these two needs to share same hw timer but different channel pair
+  const uint32_t  RPM_INPUT = PB7;            //rpm input - these two needs to share same hw timer but different channel pair (PB6 works also)
 
   //analog inputs calibration
-  const uint32_t  LAMBDA_CAL_IN = 629;
-  const uint32_t  LAMBDA_CAL_READ = 1870;
-  const uint32_t  VBATT_CAL_IN = 12370;  //real input voltage (read by multimeter)
-  const uint32_t  VBATT_CAL_READ = 2342; //uncal voltage (shown in serial debug)
-  const uint32_t  OVP_CAL_IN = 12370;   //
-  const uint32_t  OVP_CAL_READ = 2319;  //
-  //const uint32_t  ICV_CAL_IN = 4520;   //not calibrated yet
-  //const uint32_t  ICV_CAL_READ = 801;  //not calibrated yet
+  const uint32_t  LAMBDA_CAL_IN = 1;          //629;
+  const uint32_t  LAMBDA_CAL_READ = 1;        //1870;
+  const uint32_t  VBATT_CAL_IN = 12370;       //real input voltage (read by multimeter)
+  const uint32_t  VBATT_CAL_READ = 2342;      //uncal voltage (shown in serial debug)
+  const uint32_t  OVP_CAL_IN = 12370;         //
+  const uint32_t  OVP_CAL_READ = 2319;        //
 
   //outputs
-  const uint32_t  LED_LEAN2 = PB14;    //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN2
-  //const uint32_t  LED_LEAN1 = PB15;    //lean mixture LED - on when V_LEAN2 < LAMBDA_INPUT voltage <= V_LEAN1
-  const uint32_t  LED_RIGHT = PB13;    //right mixture LED - on when V_LEAN1 < LAMBDA_INPUT voltage < V_RICH1
-  //const uint32_t  LED_RICH1 = PA8;    //rich mixture  LED - on when V_RICH1 <= LAMBDA_INPUT voltage < V_RICH2
-  const uint32_t  LED_RICH2 = PB12;     //very rich mixture LED - on when V_RICH2 <= LAMBDA_INPUT voltage
-  const uint32_t  LED_ONBOARD = PC13;  //LED on the bluepill board
-  const uint32_t  ICV_PWM_OUT = PA9;   //ICV PWM output (via FET)
+  const uint32_t  LED_LEAN = PB14;            //very lean mixture LED - on when LAMBDA_INPUT voltage <= V_LEAN
+  const uint32_t  LED_RIGHT = PB13;           //right mixture LED - on when V_LEAN < LAMBDA_INPUT voltage < V_RICH
+  const uint32_t  LED_RICH = PB12;            //very rich mixture LED - on when V_RICH <= LAMBDA_INPUT voltage
+  const uint32_t  LED_ONBOARD = PC13;         //LED on the bluepill board
+  const uint32_t  ICV_PWM_OUT = PA9;          //ICV PWM output (via FET)
 
 //global variables
   bool engine_running = false;
@@ -90,11 +76,9 @@
   uint32_t rpm_idle = RPM_IDLE_DEFAULT;
   uint32_t battery_voltage, battery_voltage_uncal;
   uint32_t ovp_voltage, ovp_voltage_uncal;
-  //uint32_t icv_voltage, icv_voltage_uncal, icv_voltage_abs;
   
 //global variables used in interrupts (needs to be volatile)
   volatile uint32_t battery_raw, ovp_raw, vref_value, lambda_voltage;
-  //volatile uint32_t icv_raw;
 
 //hw-timer for rpm and duty-cycle meter
 //rpm and duty-cycle meter shares the same timer (T4)
@@ -137,11 +121,6 @@ void pid_compute()
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
       uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
-//      if(input == 0) {
-//        //simply skip everything for now so no rpm signal to stm will not cause fully-open ICV
-//        return;
-//      }
-
       /*Compute all the working error variables*/
       int32_t error = pid_setpoint - input;
       
@@ -248,7 +227,6 @@ void rpm_duty_timer_it_rollover(void)
   lambda();
   battery_raw = analogRead(BATT_INPUT);   //here we read just raw values
   ovp_raw =  analogRead(OVP_INPUT);       //we will calculate voltages when we need them (when is time to display them)
-//  icv_raw = analogRead(ICV_INPUT);        //it does not make sense to calculate these voltages every 1/30s and display them once
 
   pid_compute(); //process pid
 }
@@ -372,45 +350,23 @@ void lambda() {
   lambda_voltage = ((uint32_t)analogRead(LAMBDA_INPUT) * V_REFI * LAMBDA_CAL_IN) / (vref_value * LAMBDA_CAL_READ);
 
   //control LEDz
-  if(lambda_voltage <= V_LEAN2) {
-    //very lean
-    digitalWrite(LED_LEAN2, LOW);
-//    digitalWrite(LED_LEAN1, HIGH);
+  if(lambda_voltage <= V_LEAN) {
+    //lean
+    digitalWrite(LED_LEAN, LOW);
     digitalWrite(LED_RIGHT, HIGH);
-//    digitalWrite(LED_RICH1, HIGH);
-    digitalWrite(LED_RICH2, HIGH);
+    digitalWrite(LED_RICH, HIGH);
     
-//  } else if((V_LEAN2 < lambda_voltage) and (lambda_voltage <= V_LEAN1)) {
-//    //lean
-//    digitalWrite(LED_LEAN2, HIGH);
-//    digitalWrite(LED_LEAN1, LOW);
-//    digitalWrite(LED_RIGHT, HIGH);
-//    digitalWrite(LED_RICH1, HIGH);
-//    digitalWrite(LED_RICH2, HIGH);
-    
-  } else if((lambda_voltage > V_LEAN2) and (lambda_voltage < V_RICH2)) {
+  } else if((lambda_voltage > V_LEAN) and (lambda_voltage < V_RICH)) {
     //right
-    digitalWrite(LED_LEAN2, HIGH);
-//    digitalWrite(LED_LEAN1, HIGH);
+    digitalWrite(LED_LEAN, HIGH);
     digitalWrite(LED_RIGHT, LOW);
-//    digitalWrite(LED_RICH1, HIGH);
-    digitalWrite(LED_RICH2, HIGH);
+    digitalWrite(LED_RICH, HIGH);
     
-//  } else if((V_RICH1 <= lambda_voltage) and (lambda_voltage < V_RICH2)) {
-//    //rich
-//    digitalWrite(LED_LEAN2, HIGH);
-//    digitalWrite(LED_LEAN1, HIGH);
-//    digitalWrite(LED_RIGHT, HIGH);
-//    digitalWrite(LED_RICH1, LOW);
-//    digitalWrite(LED_RICH2, HIGH);
-    
-  } else if(lambda_voltage >= V_RICH2) {
-    //very rich
-    digitalWrite(LED_LEAN2, HIGH);
-//    digitalWrite(LED_LEAN1, HIGH);
+  } else if(lambda_voltage >= V_RICH) {
+    //rich
+    digitalWrite(LED_LEAN, HIGH);
     digitalWrite(LED_RIGHT, HIGH);
-//    digitalWrite(LED_RICH1, HIGH);
-    digitalWrite(LED_RICH2, LOW);
+    digitalWrite(LED_RICH, LOW);
   }
 }
 
@@ -432,24 +388,8 @@ void get_ovp() {
 #endif  
 }
 
-//void get_icv() {
-//  //vref_value needs to be known, otherwise vref_value = analogRead(AVREF); is needed
-//  //ovp_voltage needs to be known
-//  icv_voltage_uncal = (((uint32_t)icv_raw * V_REFI) / vref_value);
-//  icv_voltage_abs = ((uint32_t)icv_voltage_uncal * ICV_CAL_IN) / ICV_CAL_READ;
-//  if(ovp_voltage > icv_voltage_abs) { 
-//    icv_voltage = ovp_voltage - icv_voltage_abs;
-//  } else {
-//    icv_voltage = 0;
-//  }
-//#ifdef SDEBUG
-//  Serial.printf("ICV = %umV\r\nICV_abs = %umV\r\nICV_uncal = %umV\r\n", icv_voltage, icv_voltage_abs, icv_voltage_uncal);
-//#endif    
-//}
-
 void setup() {
   Serial.begin(115200);
-  //while (!Serial);                  //need to be removed, otherwise will not run WO PC :D
   Serial.print(F("\r\n\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\n"));
 
   lcd_init();
@@ -461,7 +401,6 @@ void setup() {
   pinMode(LAMBDA_INPUT, INPUT_ANALOG);
   pinMode(BATT_INPUT, INPUT_ANALOG);
   pinMode(OVP_INPUT, INPUT_ANALOG);
-//  pinMode(ICV_INPUT, INPUT_ANALOG);
   pinMode(DUTY_INPUT, INPUT);
   pinMode(RPM_INPUT, INPUT);
   analogWriteFrequency(ICV_PWM_FREQ);          //100Hz
@@ -470,32 +409,22 @@ void setup() {
   analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);           
 
   //init LED pins
-  pinMode(LED_LEAN2, OUTPUT);
-  digitalWrite(LED_LEAN2, LOW);
-//  pinMode(LED_LEAN1, OUTPUT);
-//  digitalWrite(LED_LEAN1, HIGH);
+  pinMode(LED_LEAN, OUTPUT);
+  digitalWrite(LED_LEAN, LOW);
   pinMode(LED_RIGHT, OUTPUT);
   digitalWrite(LED_RIGHT, HIGH);
-//  pinMode(LED_RICH1, OUTPUT);
-//  digitalWrite(LED_RICH1, HIGH);
-  pinMode(LED_RICH2, OUTPUT);
-  digitalWrite(LED_RICH2, HIGH);
+  pinMode(LED_RICH, OUTPUT);
+  digitalWrite(LED_RICH, HIGH);
   pinMode(LED_ONBOARD, OUTPUT);
   digitalWrite(LED_ONBOARD, HIGH);
   
   //do some fancy fx with LEDs on boot
-//  delay(250);
-//  digitalWrite(LED_LEAN2, HIGH);
-//  digitalWrite(LED_LEAN1, LOW);
   delay(250);
-  digitalWrite(LED_LEAN2, HIGH);
+  digitalWrite(LED_LEAN, HIGH);
   digitalWrite(LED_RIGHT, LOW);
-//  delay(250);
-//  digitalWrite(LED_RIGHT, HIGH);
-//  digitalWrite(LED_RICH1, LOW);
   delay(250);
   digitalWrite(LED_RIGHT, HIGH);
-  digitalWrite(LED_RICH2, LOW);
+  digitalWrite(LED_RICH, LOW);
   delay(500);
 
   vref_value = analogRead(AVREF);
