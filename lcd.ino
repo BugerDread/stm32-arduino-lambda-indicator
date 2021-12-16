@@ -174,10 +174,8 @@ void showvalues() {
   //rpm
   tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
   tft.setCursor(VAL1_X, RPM_TXT_Y);
-  uint32_t warmup = millis() - engine_started;
-  if ((pid_setpoint == RPM_WARMUP) and (warmup <= WARMUP_TIME)){
-    //warmup = WARMUP_TIME - warmup;  //warmup remaining time
-    tft.printf(F("%2u %4u"), (WARMUP_TIME - warmup) / 1000, rpm_measured); //show also warmup remaining time
+  if (warmup_remaining > 0) {
+    tft.printf(F("%2u %4u"), warmup_remaining / 1000, rpm_measured); //show also warmup remaining time
   } else {
     tft.printf(F("%7u"), rpm_measured);
   }

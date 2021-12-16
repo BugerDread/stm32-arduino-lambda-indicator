@@ -28,13 +28,14 @@
   const uint32_t  V_BATT_HIGH = 14600;        //battery voltage [mV] top level (for chart)
   const uint32_t  ICV_PWM_BITS = 8;           //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;         //ICV PWM frequency
-  const uint32_t  ICV_PWM_DEFAULT = 127;      //initial value of ICV PWM
-  const uint32_t  ICV_PWM_MIN_DEFAULT = 78;   //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power)
-  const uint32_t  ICV_PWM_MAX_DEFAULT = 255;  //cca 200 - maximum ICV PWM out during regulation (usually full range)
+  const uint32_t  ICV_PWM_DEFAULT = 0;      //initial value of ICV PWM
+  const uint32_t  ICV_PWM_MIN_DEFAULT = 78;   //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power) = about 4V
+  const uint32_t  ICV_PWM_MAX_DEFAULT = 200;  //cca 200 - maximum ICV PWM out during regulation (usually full range) = about 8V
 
   const uint32_t  RPM_IDLE_DEFAULT = 750;
-  const uint32_t  RPM_WARMUP = 1250;
-  const uint32_t  WARMUP_TIME = 30000;        //warmup time [ms] during that rpm = RPM_WARMUP
+  const uint32_t  RPM_WARMUP_DEFAULT = 1250;
+  const uint32_t  WARMUP_TIME_DEFAULT = 60000;        //default warmup time [ms] during that rpm = rpm_warmup
+  const uint32_t  WARMUP_TIME_MAX = 300000;   //maximum warmup time (300000 = 5min)
   const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
   const uint32_t  RPM_MAX = 10000;
   const uint32_t  RPM_MIN = 500;
@@ -70,10 +71,14 @@
 
 //global variables
   bool engine_running = false;
+  bool warmup_phase = true;
   unsigned long engine_last_running = 0;
   unsigned long engine_started = 0;
-  uint32_t warmup_remaining = 0;
+//  uint32_t warmup_remaining = 0;
+  uint32_t warmup_time = WARMUP_TIME_DEFAULT;
+  uint32_t warmup_remaining = WARMUP_TIME_DEFAULT;
   uint32_t rpm_idle = RPM_IDLE_DEFAULT;
+  uint32_t rpm_warmup = RPM_WARMUP_DEFAULT;
   uint32_t battery_voltage, battery_voltage_uncal;
   uint32_t ovp_voltage, ovp_voltage_uncal;
   
@@ -101,7 +106,7 @@
   const double pid_sample_time_s = (double)65536 / PRM_DUTY_TIMER_IFREQ;   //time period [in s] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) = 65536 / PRM_DUTY_TIMER_IFREQ;
   volatile uint32_t pid_output;      //this variable needs to be able to hold values in range pid_out_min .. pid_out_max
   volatile uint32_t pid_debug_cnt = 0;
-  uint32_t pid_setpoint = RPM_IDLE_DEFAULT;
+  uint32_t pid_setpoint = RPM_WARMUP_DEFAULT;
   double pid_iterm = 0;
   uint32_t pid_lastinput = 0;
   double pid_kp = PID_KP_DEFAULT;
@@ -120,6 +125,12 @@ void pid_compute()
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
       uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
+
+      if (input == 0) {                     //if we lost the rpm signal, turn off the ICV
+        pid_output = ICV_PWM_DEFAULT;
+        analogWrite(ICV_PWM_OUT, pid_output);
+        return;
+      }
       
       /*Compute all the working error variables*/
       int32_t error = pid_setpoint - input;
@@ -430,7 +441,7 @@ void setup() {
   vref_value = analogRead(AVREF);
 
   eeload();
-  pid_setpoint = rpm_idle;
+  pid_setpoint = rpm_warmup;
   pid_set_tunings(pid_kp, pid_ki, pid_kd); //0.2, 0.1, 0
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
@@ -451,21 +462,30 @@ void check_engine_running() {
       Serial.println(F("Engine stopped"));
     }
   } else {
+    //engine running
     if (!engine_running) {
       //engine has been just started
       engine_started = millis();
       engine_running = true;
-      pid_setpoint = RPM_WARMUP;
+      warmup_phase = true;    //commnet this out to require reboot to warm up again, makes no difference if powered from OVP
+      pid_setpoint = rpm_warmup;
       Serial.println(F("Engine started"));
     }
-    //engine running
-    engine_last_running = millis();
-
-    if ((pid_setpoint == RPM_WARMUP) and ((engine_last_running - engine_started) > WARMUP_TIME)) {    //engine_last_running used because we assgned millis() to it one line above
-      //warmup is over
-      pid_setpoint = rpm_idle;
-    }
     
+    engine_last_running = millis();
+    if ((engine_last_running - engine_started) < warmup_time) {                          //engine_last_running used because we assgned millis() to it one line above
+      //warmup phase
+      warmup_remaining = warmup_time - (engine_last_running - engine_started);
+    } else {
+      warmup_remaining = 0;
+    }
+
+    if ((warmup_phase) and (warmup_remaining == 0)) {
+      //warmup is over
+      warmup_phase = false;
+      pid_setpoint = rpm_idle;
+      Serial.println(F("Warmup over"));
+    }
   }
 }
 

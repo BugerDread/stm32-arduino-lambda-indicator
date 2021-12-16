@@ -1,4 +1,5 @@
 const double PID_TUNING_STEP = 0.01; 
+const uint32_t WARMUP_TIME_STEP = 1000;    //1000ms = 1s, its also the minimum for warmup_time
 
 char sdata, sdata_last = '\r';
 
@@ -146,8 +147,48 @@ void checkserial() {
         Serial.printf(F("pid_out = %u\r\n"), pid_output);
         break;
 
+      case 'w':
+        if (rpm_warmup < RPM_MAX) {
+          //increase warmup rpm
+          rpm_warmup++;
+          if (warmup_phase) {
+            pid_setpoint = rpm_warmup;
+          }
+        }
+        Serial.printf(F("rpm_warmup = %u\r\n"), rpm_warmup);
+        break;
+
+      case 'W':
+        if (rpm_warmup > RPM_MIN) {
+          //decrease warmup rpm
+          rpm_warmup--;
+          if (warmup_phase) {
+            pid_setpoint = rpm_warmup;
+          }
+        }
+        Serial.printf(F("rpm_warmup = %u\r\n"), rpm_warmup);
+        break;
+
+      case 'e':
+        if (warmup_time < (WARMUP_TIME_MAX - WARMUP_TIME_STEP)) {
+          warmup_time += WARMUP_TIME_STEP;
+        } else {
+          warmup_time = WARMUP_TIME_MAX;
+        }
+        Serial.printf(F("warmup_time = %us\r\n"), warmup_time / 1000);
+        break;
+
+      case 'E':
+        if (warmup_time > WARMUP_TIME_STEP) {
+          warmup_time -= WARMUP_TIME_STEP;
+        } else {
+          warmup_time = WARMUP_TIME_STEP;
+        }
+        Serial.printf(F("warmup_time = %us\r\n"), warmup_time / 1000);
+        break;
+
       case 'a':
-        //Serial.println(F("Status:"));
+        //Status
         Serial.printf(F("\r\nStatus:\r\n"
                         "rpm_measured = %u\r\n"
                         "pid_on = %s\r\n"
@@ -158,12 +199,18 @@ void checkserial() {
                         "pid_kp = %.2f\r\n"
                         "pid_ki = %.2f\r\n"
                         "pid_kd = %.2f\r\n"
-                        ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max, pid_kp, pid_ki, pid_kd);
+                        "rpm_idle = %u\r\n"
+                        "rpm_warmup = %u\r\n"
+                        "warmup_time = %u/%us\r\n\r\n"
+                        ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max,
+                        pid_kp, pid_ki, pid_kd, rpm_idle, rpm_warmup, warmup_remaining / 1000, warmup_time / 1000);
         break;                        
       
       case 'h':
         Serial.println(F("\r\nHelp:\r\n"
                        "r / R = change target idle rpm\r\n"
+                       "w / W = change warmup rpm\r\n"
+                       "e / E = change warmup time\r\n"
                        "b / B = change pwm_out_min\r\n"
                        "t / T = change pwm_out_max\r\n"
                        "p / P / i / I / d / D = change PID configuration\r\n"
@@ -172,7 +219,7 @@ void checkserial() {
                        "s / S = save config to EEPROM\r\n"
                        "l / L = load config from EEPROM\r\n"
                        "a = actual status\r\n"
-                       "h = this help"));
+                       "h = this help\r\n"));
         break;
     }
     
