@@ -20,6 +20,8 @@
 //constants
 //it does not make a sense to make integers smaller than 32b
   //general
+  const uint32_t  PULSES_PER_REV = 2;         //number of pulses per revolution from ZEL
+  const uint32_t  RPM_METER_MIN = 300;       //minimum PRM we want to be able to measure
   const uint32_t  V_REFI = 1208;              //STM32F103 internal reference voltage [mV]
   const uint32_t  V_LEAN = 100;               //very lean mixture voltage [mV]
   const uint32_t  V_RICH = 700;               //very rich mixture voltage [mV]
@@ -85,21 +87,23 @@
 //global variables used in interrupts (needs to be volatile)
   volatile uint32_t battery_raw, ovp_raw, vref_value, lambda_voltage;
 
+//rpm-meter
+  const uint32_t FREQ_TO_RPM = 60 / PULSES_PER_REV;                       //1Hz = 15rpm if there are 4 pusles per revolution, 1Hz = 30rpm with 2 pulses per revolution
+  uint32_t rpm_channel;
+  volatile uint32_t rpm_measured, rpm_last_capture = 0, rpm_capture;
+  volatile uint32_t rpm_rollover_count = 0;
+  uint32_t rpm_history[3]; //history
+
 //hw-timer for rpm and duty-cycle meter
 //rpm and duty-cycle meter shares the same timer (T4)
-  const uint32_t RPM_DUTY_HW_TIMER_PRESCALER = 36;                                         //36 minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450
+  const uint32_t RPM_DUTY_HW_TIMER_PRESCALER = (SystemCoreClock * FREQ_TO_RPM) / (65536 * RPM_METER_MIN);                                         //36 minimum meas. freq = 72000000/65536/36 = 30Hz, duty signal should be 100Hz, rpm from 450 for 15rpm per Hz
+                                                                                           //= 72 000 000 / 65536 / (minimum_rpm / FREQ_TO_RPM) =  1099.6 * FREQ_TO_RPM / minimum_rpm
+                                                                                           //= 1099.6*30/300 = 110 (30rpm per Hz and 300rpm minimum)
   const uint32_t PRM_DUTY_TIMER_IFREQ = SystemCoreClock / RPM_DUTY_HW_TIMER_PRESCALER;    //input freq of the timer
   uint32_t duty_ch_rising, duty_ch_falling;
   volatile uint32_t duty_freq_measured, duty_cycle_measured, duty_last_capture = 0, duty_capture, duty_highstate;
   volatile uint32_t duty_rollover_count = 0;
   HardwareTimer *rpm_duty_timer;                                                          //our HW timer
-  
-//rpm-meter
-  const uint32_t FREQ_TO_RPM = 15;                       //1Hz = 15rpm if there are 4 pusles per rpm
-  uint32_t rpm_channel;
-  volatile uint32_t rpm_measured, rpm_last_capture = 0, rpm_capture;
-  volatile uint32_t rpm_rollover_count = 0;
-  uint32_t rpm_history[3]; //history
 
 //PID
   //const uint16_t pid_sample_time = 65536000 / PRM_DUTY_TIMER_IFREQ;     //time period [in ms] pid proces is called = time period of rpm_duty_timer overflow = 1 / (PRM_DUTY_TIMER_IFREQ / 65536) * 1000 = 65536000 / PRM_DUTY_TIMER_IFREQ;
@@ -280,9 +284,9 @@ void rpm_it_capture(void)
 
     if((rpm <= RPM_MAX) and (rpm > 0)) {                 //check if the rpm we got makes sense - ignore if its way high (dont even update rpm_measured)
       //calculate average from 4 last good measurements and rotate the history
-      rpm_measured = (rpm + rpm_history[0] + rpm_history[1] + rpm_history[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit
-      rpm_history[2] = rpm_history[1];
-      rpm_history[1] = rpm_history[0];
+      rpm_measured = (rpm + rpm_history[0] ) / 2; //+ rpm_history[1] + rpm_history[2]) / 4; //average from last 4 values, rpm is uint32_t so the result of sum will fit - only two
+      //rpm_history[2] = rpm_history[1];
+      //rpm_history[1] = rpm_history[0];
       rpm_history[0] = rpm;
     } 
   //} 
