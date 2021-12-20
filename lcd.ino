@@ -10,7 +10,7 @@
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
 #include <SPI.h>
-#include "mercedescut.h"
+#include "logo.h"
 
 //menu
   const uint8_t TEXT_W = 5;
@@ -64,7 +64,7 @@ void lcd_init() {
   tft.setRotation(3);
   tft.fillScreen(ST77XX_BLACK);
   Serial.println(F("- DONE\r\nDrawing logo"));
-  tft.drawRGBBitmap(26, 6, mblogo, 108, 108);
+  tft.drawRGBBitmap(26, 6, logo, 108, 108);
   tft.setCursor(8, 120);
   tft.setTextSize(1);
   tft.setTextColor(ST77XX_BLUE);
