@@ -76,7 +76,7 @@
   bool warmup_phase = true;
   unsigned long engine_last_running = 0;
   unsigned long engine_started = 0;
-//  uint32_t warmup_remaining = 0;
+  uint32_t icv_pwm_man = ICV_PWM_DEFAULT;
   uint32_t warmup_time = WARMUP_TIME_DEFAULT;
   uint32_t warmup_remaining = WARMUP_TIME_DEFAULT;
   uint32_t rpm_idle = RPM_IDLE_DEFAULT;
@@ -211,7 +211,7 @@ void duty_it_capture_rising(void)
    To reduce minimum frequency, it is possible to increase prescaler. But this is at a cost of precision. */
 void rpm_duty_timer_it_rollover(void)
 {
-  //this is called with about 30Hz frequency
+  //this is called with frequency PRM_DUTY_TIMER_IFREQ / 65536
   
   duty_rollover_count++;
 
@@ -407,8 +407,6 @@ void setup() {
   Serial.begin(115200);
   Serial.print(F("\r\n\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\n"));
 
-  lcd_init();
-  
   //ADC will use 12bit accuracy
   analogReadResolution(12);
   
@@ -423,32 +421,32 @@ void setup() {
   pinMode(ICV_PWM_OUT, OUTPUT);               //ICV PWM signal
   analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);           
 
-  //init LED pins
+  //init LED pins and tur on front ledz
   pinMode(LED_LEAN, OUTPUT);
   digitalWrite(LED_LEAN, LOW);
   pinMode(LED_RIGHT, OUTPUT);
-  digitalWrite(LED_RIGHT, HIGH);
+  digitalWrite(LED_RIGHT, LOW);
   pinMode(LED_RICH, OUTPUT);
-  digitalWrite(LED_RICH, HIGH);
+  digitalWrite(LED_RICH, LOW);
   pinMode(LED_ONBOARD, OUTPUT);
   digitalWrite(LED_ONBOARD, HIGH);
-  
-  //do some fancy fx with LEDs on boot
-  delay(250);
-  digitalWrite(LED_LEAN, HIGH);
-  digitalWrite(LED_RIGHT, LOW);
-  delay(250);
-  digitalWrite(LED_RIGHT, HIGH);
-  digitalWrite(LED_RICH, LOW);
-  delay(500);
 
+  lcd_init();
+  
   vref_value = analogRead(AVREF);
 
-  eeload();
+  eeload();                                     //get configuration from eeprom
+  pid_set_tunings(pid_kp, pid_ki, pid_kd); 
   pid_setpoint = rpm_warmup;
-  pid_set_tunings(pid_kp, pid_ki, pid_kd); //0.2, 0.1, 0
+  if (!pid_on) {
+    pid_output = icv_pwm_man;
+    analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
+  }
+  
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
+
+  delay (3000); //delay to show the logo on the screen, regulation already running :D
   
   //Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();

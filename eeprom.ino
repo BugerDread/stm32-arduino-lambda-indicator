@@ -2,19 +2,24 @@
 const double MAGIC_CONSTANT = 42.42;
 
 struct eeconfig_t {
-  uint32_t rpm, rpm_warmup, warmup_time, out_min, out_max;
+  bool pid_on;
+  uint32_t rpm, rpm_warmup, warmup_time, out_min, out_max, icv_pwm_man;
   double kp, ki, kd;
   double sum;
 };
 
 double eesum (struct eeconfig_t eedata) {
-  return (eedata.kp + eedata.ki + eedata.kd + eedata.rpm + eedata.out_min + eedata.out_max + eedata.rpm_warmup + eedata.warmup_time + MAGIC_CONSTANT);
+  return (eedata.kp + eedata.ki + eedata.kd + eedata.rpm + eedata.out_min + eedata.out_max
+          + eedata.rpm_warmup + eedata.warmup_time + eedata.icv_pwm_man + (eedata.pid_on * MAGIC_CONSTANT)
+          + MAGIC_CONSTANT);
 }
 
 void eesave() {
   unsigned long m1 = millis();
   eeconfig_t eedata;
 
+  eedata.icv_pwm_man = icv_pwm_man;
+  eedata.pid_on = pid_on;
   eedata.rpm = rpm_idle;
   eedata.rpm_warmup = rpm_warmup;
   eedata.warmup_time = warmup_time;
@@ -24,10 +29,29 @@ void eesave() {
   eedata.ki = pid_ki;
   eedata.kd = pid_kd;
   eedata.sum = eesum(eedata);
+
+  eeprint(eedata);
   
   EEPROM.put(0, eedata);
   
   Serial.printf(F("Config saved to EEPROM in %ums\r\n"), millis() - m1);
+}
+
+void eeprint(struct eeconfig_t eedata) {
+  Serial.printf(F("\r\nEEPROM data\r\n"
+                  "pid_on = %s\r\n"
+                  "rpm = %u\r\n"
+                  "rpm_warmup = %u\r\n"
+                  "warmup_time = %u\r\n"
+                  "out_min = %u\r\n"
+                  "out_max = %u\r\n"
+                  "icv_pwm_man = %u\r\n"
+                  "pid_kp = %.2f\r\n"
+                  "pid_ki = %.2f\r\n"
+                  "pid_kd = %.2f\r\n"
+                  "sum = %s\r\n\r\n"
+                  ), eedata.pid_on ? "true" : "false", eedata.rpm, eedata.rpm_warmup, eedata.warmup_time, 
+                  eedata.out_min, eedata.out_max, eedata.icv_pwm_man, eedata.kp, eedata.ki, eedata.kd, (eedata.sum == eesum(eedata)) ? "valid" : "invalid");
 }
 
 void eeload() {
@@ -36,7 +60,9 @@ void eeload() {
   
   EEPROM.get(0, eedata);
 
-  //checksw
+  eeprint(eedata);
+
+  //checks
   if (eedata.sum != eesum(eedata)) {
     Serial.println(F("Invalid checksum, can\'t load EEPROM data, FLASH defaults will be used"));
     return;
@@ -65,7 +91,12 @@ void eeload() {
     Serial.println(F("Invalid pid constants data, FLASH defaults will be used"));
     return;
   }
+  if (eedata.icv_pwm_man > 255) {
+    Serial.println(F("Invalid icv_pwm_man, FLASH defaults will be used"));
+    return;
+  }
   
+  icv_pwm_man = eedata.icv_pwm_man;
   rpm_idle = eedata.rpm;
   rpm_warmup = eedata.rpm_warmup;
   warmup_time = eedata.warmup_time;
@@ -74,6 +105,7 @@ void eeload() {
   pid_kp = eedata.kp;
   pid_ki = eedata.ki;
   pid_kd = eedata.kd;
+  pid_on = eedata.pid_on;
 
   Serial.printf(F("Config loaded from EEPROM in %ums\r\n"), millis() - m1);
   return;

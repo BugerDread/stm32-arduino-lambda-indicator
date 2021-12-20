@@ -131,6 +131,7 @@ void checkserial() {
         } 
         if (pid_output < pid_out_max) {
           pid_output++;
+          icv_pwm_man = pid_output;
           analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
         }
         Serial.printf(F("pid_out = %u\r\n"), pid_output);
@@ -142,6 +143,7 @@ void checkserial() {
         } 
         if (pid_output > pid_out_min) {
           pid_output--;
+          icv_pwm_man = pid_output;
           analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
         }
         Serial.printf(F("pid_out = %u\r\n"), pid_output);
