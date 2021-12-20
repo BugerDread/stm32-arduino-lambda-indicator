@@ -15,6 +15,9 @@ void pid_compute()
       
       /*Compute all the working error variables*/
       int32_t error = pid_setpoint - input;
+      if (abs(error) < 5) {                   //ignore very small errors
+        error = 0;
+      }
       
       pid_iterm += (pid_ki_internal * error);
       if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;

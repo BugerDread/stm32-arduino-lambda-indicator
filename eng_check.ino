@@ -13,7 +13,7 @@ void check_engine_running() {
       //engine has been just started
       engine_started = millis();
       engine_running = true;
-      warmup_phase = true;    //commnet this out to require reboot to warm up again, makes no difference if powered from OVP
+      warmup_phase = true;    //commnent this out to require reboot to warm up again, makes no difference if powered from OVP
       pid_setpoint = rpm_warmup;
       Serial.println(F("Engine started"));
     }

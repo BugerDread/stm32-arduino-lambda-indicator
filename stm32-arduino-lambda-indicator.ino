@@ -123,6 +123,7 @@
 
 void setup() {
   Serial.begin(115200);
+  //while(!Serial);   //remove or comment out after debugging, will not run wo PC connected :D
   Serial.print(F("\r\n\r\n* * * BGR Lambda Indicator v0.01 * * *\r\n\r\n"));
 
   //ADC will use 12bit accuracy
@@ -141,16 +142,14 @@ void setup() {
 
   //init LED pins and tur on front ledz
   pinMode(LED_LEAN, OUTPUT);
-  digitalWrite(LED_LEAN, LOW);
+  digitalWrite(LED_LEAN, HIGH);
   pinMode(LED_RIGHT, OUTPUT);
-  digitalWrite(LED_RIGHT, LOW);
+  digitalWrite(LED_RIGHT, HIGH);
   pinMode(LED_RICH, OUTPUT);
-  digitalWrite(LED_RICH, LOW);
+  digitalWrite(LED_RICH, HIGH);
   pinMode(LED_ONBOARD, OUTPUT);
   digitalWrite(LED_ONBOARD, HIGH);
 
-  lcd_init();
-  
   vref_value = analogRead(AVREF);
 
   eeload();                                     //get configuration from eeprom
@@ -164,6 +163,7 @@ void setup() {
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
 
+  lcd_init();
   delay (3000); //delay to show the logo on the screen, regulation already running :D
   
   //Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
