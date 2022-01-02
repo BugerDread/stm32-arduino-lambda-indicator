@@ -15,9 +15,9 @@ void pid_compute()
       
       /*Compute all the working error variables*/
       int32_t error = pid_setpoint - input;
-      if (abs(error) < 5) {                   //ignore very small errors
-        error = 0;
-      }
+      //if (abs(error) < 5) {                   //ignore very small errors
+      //  error = 0;
+      //}
       
       pid_iterm += (pid_ki_internal * error);
       if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
@@ -52,9 +52,9 @@ void pid_set_tunings(double Kp, double Ki, double Kd)
 
    Serial.printf(F("PID params:\r\n"
                    "pid_sample_time = %.2fms / %uHz\r\n"
-                   "pid_kp = %.2f\r\n"
-                   "pid_ki = %.2f\r\n"
-                   "pid_kd = %.2f\r\n"),
+                   "pid_kp = %.3f\r\n"
+                   "pid_ki = %.3f\r\n"
+                   "pid_kd = %.3f\r\n"),
                    pid_sample_time_s * 1000, PRM_DUTY_TIMER_IFREQ / 65536,
                    pid_kp, pid_ki, pid_kd);
 }

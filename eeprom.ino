@@ -46,9 +46,9 @@ void eeprint(struct eeconfig_t eedata) {
                   "out_min = %u\r\n"
                   "out_max = %u\r\n"
                   "icv_pwm_man = %u\r\n"
-                  "pid_kp = %.2f\r\n"
-                  "pid_ki = %.2f\r\n"
-                  "pid_kd = %.2f\r\n"
+                  "pid_kp = %.3f\r\n"
+                  "pid_ki = %.3f\r\n"
+                  "pid_kd = %.3f\r\n"
                   "sum = %s\r\n\r\n"
                   ), eedata.pid_on ? "true" : "false", eedata.rpm, eedata.rpm_warmup, eedata.warmup_time, 
                   eedata.out_min, eedata.out_max, eedata.icv_pwm_man, eedata.kp, eedata.ki, eedata.kd, (eedata.sum == eesum(eedata)) ? "valid" : "invalid");

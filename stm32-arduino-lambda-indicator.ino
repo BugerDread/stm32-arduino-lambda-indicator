@@ -23,11 +23,11 @@
   const uint32_t  PULSES_PER_REV = 2;         //number of pulses per revolution from ZEL
   const uint32_t  RPM_METER_MIN = 300;       //minimum PRM we want to be able to measure
   const uint32_t  V_REFI = 1208;              //STM32F103 internal reference voltage [mV]
-  const uint32_t  V_LEAN = 100;               //very lean mixture voltage [mV]
-  const uint32_t  V_RICH = 700;               //very rich mixture voltage [mV]
+  const uint32_t  V_LEAN = 250;               //very lean mixture voltage [mV]
+  const uint32_t  V_RICH = 650;               //very rich mixture voltage [mV]
   const uint32_t  CYCLE_DELAY = 100;          //delay for each round [ms]
   const uint32_t  V_BATT_LOW = 11000;         //battery voltage [mV] bottom level (for chart)
-  const uint32_t  V_BATT_HIGH = 14600;        //battery voltage [mV] top level (for chart)
+  const uint32_t  V_BATT_HIGH = 15000;        //battery voltage [mV] top level (for chart)
   const uint32_t  ICV_PWM_BITS = 8;           //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;         //ICV PWM frequency
   const uint32_t  ICV_PWM_DEFAULT = 0;      //initial value of ICV PWM
@@ -42,8 +42,8 @@
   const uint32_t  RPM_MAX = 10000;
   const uint32_t  RPM_MIN = 500;
 
-  const double    PID_KP_DEFAULT = 1.0;
-  const double    PID_KI_DEFAULT = 1.0;
+  const double    PID_KP_DEFAULT = 0.02;
+  const double    PID_KI_DEFAULT = 0.02;
   const double    PID_KD_DEFAULT = 0.0;
                                               
   const uint32_t  DUTY_LOW = 10;

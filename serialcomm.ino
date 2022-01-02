@@ -1,4 +1,4 @@
-const double PID_TUNING_STEP = 0.01; 
+const double PID_TUNING_STEP = 0.001; 
 const uint32_t WARMUP_TIME_STEP = 1000;    //1000ms = 1s, its also the minimum for warmup_time
 
 char sdata, sdata_last = '\r';
@@ -198,9 +198,9 @@ void checkserial() {
                         "pid_output = %u\r\n"
                         "pid_out_min = %u\r\n"
                         "pid_out_max = %u\r\n"
-                        "pid_kp = %.2f\r\n"
-                        "pid_ki = %.2f\r\n"
-                        "pid_kd = %.2f\r\n"
+                        "pid_kp = %.3f\r\n"
+                        "pid_ki = %.3f\r\n"
+                        "pid_kd = %.3f\r\n"
                         "rpm_idle = %u\r\n"
                         "rpm_warmup = %u\r\n"
                         "warmup_time = %u/%us\r\n\r\n"

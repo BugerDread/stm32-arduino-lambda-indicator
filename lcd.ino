@@ -38,8 +38,8 @@
   const uint16_t LINE_COLOR = 0x528A;
   const uint16_t BACKGROUND_COLOR = ST77XX_BLACK;
   const uint16_t HEADER_COLOR = ST77XX_BLUE;
-  const uint8_t VAL1_X = 65;
-  const uint8_t VAL2_X = 109;
+  const uint8_t VAL1_X = 42;
+  const uint8_t VAL2_X = 93;
   const uint16_t GOOD_VAL_TXT_COLOR = ST77XX_BLACK;
   const uint16_t WARN_VAL_TXT_COLOR = ST77XX_BLACK;
   const uint16_t FAIL_VAL_TXT_COLOR = ST77XX_BLACK;
@@ -151,52 +151,72 @@ void drawchart(uint32_t pos_y, uint32_t value, uint32_t value_min, uint32_t valu
   
 }
 
+uint32_t last_shown_value = 0;  //index of value shown on lcd last time
+
 void showvalues() {
-//  unsigned long m1 = millis();
+  unsigned long m1 = millis();
+
+  last_shown_value++;
+  if (last_shown_value >= 6) last_shown_value = 0;  //we have just 6 values on display (counted from 0)
+  
   //battery
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, BATTERY_TXT_Y);
-  tft.printf(F("%6.2fV"), (float)battery_voltage / 1000); 
+//  if (last_shown_value == 0) {
+    tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+    tft.setCursor(VAL1_X + ((TEXT_W + 1) * 3), BATTERY_TXT_Y);
+    tft.printf(F("%4.1fV"), (float)battery_voltage / 1000); 
+//  }
   drawchart(BATTERY_TXT_Y, battery_voltage, V_BATT_LOW, V_BATT_HIGH);
 
   //ovp
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, OVP_TXT_Y);
-  tft.printf(F("%6.2fV"), (float)ovp_voltage / 1000);
+//  if (last_shown_value == 1) {
+    tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+    tft.setCursor(VAL1_X + ((TEXT_W + 1) * 3), OVP_TXT_Y);
+    tft.printf(F("%4.1fV"), (float)ovp_voltage / 1000);
+//  }
   drawchart(OVP_TXT_Y, ovp_voltage, V_BATT_LOW, V_BATT_HIGH);
   
   //lambda
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, LAMBDA_TXT_Y);
-  tft.printf(F("%5umV"), lambda_voltage);
+//  if (last_shown_value == 2) {
+    tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+    tft.setCursor(VAL1_X + ((TEXT_W + 1) * 2), LAMBDA_TXT_Y);
+    tft.printf(F("%4umV"), lambda_voltage);
+//  }
   drawchart(LAMBDA_TXT_Y, lambda_voltage, V_LEAN, V_RICH);   
 
   //rpm
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, RPM_TXT_Y);
-  if (warmup_remaining > 0) {
-    tft.printf(F("%2u %4u"), warmup_remaining / 1000, rpm_measured); //show also warmup remaining time
-  } else {
-    tft.printf(F("%7u"), rpm_measured);
-  }
+//  if (last_shown_value == 3) {
+    tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+    
+    if (warmup_remaining > 0) {
+      tft.setCursor(VAL1_X, RPM_TXT_Y);
+      tft.printf(F("%3u %4u"), warmup_remaining / 1000, rpm_measured); //show also warmup remaining time
+    } else {
+      tft.setCursor(VAL1_X + ((TEXT_W + 1) * 4), RPM_TXT_Y);
+      tft.printf(F("%4u"), rpm_measured);
+    }
+//  }
   drawchart(RPM_TXT_Y, rpm_measured, RPM_MIN, (rpm_idle * 2) - RPM_MIN);
 
   //ICV pwm
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, ICV_TXT_Y);
-  tft.printf(F("%7u"), pid_output);
+//  if (last_shown_value == 4) {
+    tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+    tft.setCursor(VAL1_X + ((TEXT_W + 1) * 5), ICV_TXT_Y);
+    tft.printf(F("%3u"), pid_output);
+//  }
   drawchart(ICV_TXT_Y, pid_output, pid_out_min, pid_out_max);
   
   //CIS duty
-  tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
-  tft.setCursor(VAL1_X, DUTY_TXT_Y);
-  tft.printf(F("%6u%%"), duty_cycle_measured);
+//  if (last_shown_value == 5) {
+    tft.setTextColor(TXT_VAL_COLOR, BACKGROUND_COLOR);
+    tft.setCursor(VAL1_X + ((TEXT_W + 1) * 4), DUTY_TXT_Y);
+    tft.printf(F("%3u%%"), duty_cycle_measured);
+//  }
   drawchart(DUTY_TXT_Y, duty_cycle_measured, DUTY_LOW, DUTY_HIGH);
   
   if ((++chart_x + VAL2_X) >= LCD_W) {
     chart_x = 0;
   }
 
-//  Serial.printf(F("LCD update took %ums\r\n"), millis() - m1);
+  Serial.printf(F("LCD update took %ums\r\n"), millis() - m1);
 
 }
