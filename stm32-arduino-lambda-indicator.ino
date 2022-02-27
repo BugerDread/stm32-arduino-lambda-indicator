@@ -157,10 +157,14 @@ void setup() {
   eeload();                                     //get configuration from eeprom
   pid_set_tunings(pid_kp, pid_ki, pid_kd); 
   pid_setpoint = rpm_warmup;
-  if (!pid_on) {
-    pid_output = icv_pwm_man;
-    analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
+  
+  if (!pid_on) {                                //manual od PID control?
+    pid_output = icv_pwm_man;                   //manual - lets set the output to pwm_man
+  } else {                                      //PID control
+    pid_iterm = pid_out_min;                    //set the PID Iterm and output to minimum
+    pid_output = pid_out_min;
   }
+  analogWrite(ICV_PWM_OUT, pid_output);       //send output to ICV
   
   //init hw-timer-duty-cycle-meter
   hw_timer_rpm_duty_meter_init();
