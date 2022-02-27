@@ -15,24 +15,22 @@ void pid_compute()
       
       /*Compute all the working error variables*/
       int32_t error = pid_setpoint - input;
-      //if (abs(error) < 5) {                   //ignore very small errors
-      //  error = 0;
-      //}
       
       pid_iterm += (pid_ki_internal * error);
       if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
-      else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
+        else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
       
       int32_t dInput = input - pid_lastinput;
  
       /*Compute PID Output*/
       double output = pid_kp_internal * error + pid_iterm - pid_kd_internal * dInput;
+      
+      /limit PID out range
       if(output > pid_out_max) output = pid_out_max;
-      else if(output < pid_out_min) output = pid_out_min;
+        else if(output < pid_out_min) output = pid_out_min;
+        
       //now we have the result computed
       pid_output = output;
-
-      //send output to output :D
       analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
  
       /*Remember some variables for next time*/

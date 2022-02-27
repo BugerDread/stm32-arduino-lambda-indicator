@@ -137,8 +137,10 @@ void setup() {
   pinMode(RPM_INPUT, INPUT);
   analogWriteFrequency(ICV_PWM_FREQ);          //100Hz
   analogWriteResolution(ICV_PWM_BITS);          //we have 16bit timers so use them or not?
+
+  //ICV PWM OUTPUT
   pinMode(ICV_PWM_OUT, OUTPUT);               //ICV PWM signal
-  analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);           
+  analogWrite(ICV_PWM_OUT, ICV_PWM_DEFAULT);              
 
   //init LED pins and tur on front ledz
   pinMode(LED_LEAN, OUTPUT);
@@ -164,7 +166,7 @@ void setup() {
   hw_timer_rpm_duty_meter_init();
 
   lcd_init();
-  delay (3000); //delay to show the logo on the screen, regulation already running :D
+  delay (1000); //delay to show the logo on the screen, regulation already running :D
   
   //Serial.printf(F("sampletime: %ums = %uHz\r\n"), (uint32_t)(pid_sample_time_s * 1000), PRM_DUTY_TIMER_IFREQ / 65536);
   drawbasicscreen();
