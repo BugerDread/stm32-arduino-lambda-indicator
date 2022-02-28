@@ -1,12 +1,22 @@
 //MECEDES-PILL - W124-DIAG
 //by BugerDread
 
+//STM32 support for arduino
+//URL to add STM32 support: https://github.com/stm32duino/BoardManagerFiles/raw/main/package_stmicroelectronics_index.json
+//Install: STM32 MCU based boards by STMicroelectronics v 2.1.0
+
+//other libs: 
+// - Adafruit_ST7735 v 1.7.4
+// - Adafruit_GFX v 1.10.12
+
 //options
 //board: buepillF103CB (or C8 with 128k)
 //USART support: disabled (no Serial support)
 //USB support: CDC (generic Serial supersede USART)
+//USB speed: low / full
 //C Runtime: Newlib Nano + float printf
 //Optimize: -O2 + LTO
+//Upload method: Maple DFU 2.0
 
 // !!!if some variable is modified by ISR it MUST be declared as volatile
 
