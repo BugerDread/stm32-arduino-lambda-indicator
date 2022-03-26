@@ -1,13 +1,13 @@
 void pid_compute()
 {     
-      if ((!pid_on) or (rpm_measured == 0)) return;    //exit if pid is not on or we dont have rpm signal
+      uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
+      
+      if ((!pid_on) or (input == 0)) return;    //exit if pid is not on or we dont have rpm signal
   
       //do we need to filter the rpm_measured to make sure it is sane?
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
       
-      uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
-
 //      if (input == 0) {                     //if we lost the rpm signal
 //        //pid_output = ICV_PWM_DEFAULT;
 //        //analogWrite(ICV_PWM_OUT, pid_output);
@@ -25,10 +25,16 @@ void pid_compute()
  
       /*Compute PID Output*/
       double output = pid_kp_internal * error + pid_iterm - pid_kd_internal * dInput;
+
+      //check if we need boost (to avoid engine dying on lpg)
+      if (input < pid_boost_rpm) {
+        //yes booost pleeeassssseeee
+        output += (pid_boost_rpm - input) * pid_boost_kp;   //add error * boost_kp to output
+      }
       
       //limit PID out range
-      if(output > pid_out_max) output = pid_out_max;
-        else if(output < pid_out_min) output = pid_out_min;
+      if (output > pid_out_max) output = pid_out_max;
+        else if (output < pid_out_min) output = pid_out_min;
         
       //now we have the result computed
       pid_output = output;

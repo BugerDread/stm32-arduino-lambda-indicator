@@ -52,6 +52,9 @@
   const uint32_t  RPM_MAX = 10000;
   const uint32_t  RPM_MIN = 500;
 
+  const uint32_t  PID_BOOST_RPM_DEFAULT = 0;      //boost disabled by default
+  const double    PID_BOOST_KP_DEFAULT = 0;       //boost disabled by default
+
   const double    PID_KP_DEFAULT = 0.02;
   const double    PID_KI_DEFAULT = 0.02;
   const double    PID_KD_DEFAULT = 0.0;
@@ -130,6 +133,8 @@
   uint32_t pid_out_min = ICV_PWM_MIN_DEFAULT;
   uint32_t pid_out_max = ICV_PWM_MAX_DEFAULT;
   bool pid_on = true;
+  uint32_t pid_boost_rpm = PID_BOOST_RPM_DEFAULT;
+  double pid_boost_kp = PID_BOOST_KP_DEFAULT;
 
 void setup() {
   Serial.begin(115200);

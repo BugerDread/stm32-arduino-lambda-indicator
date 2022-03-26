@@ -189,6 +189,34 @@ void checkserial() {
         Serial.printf(F("warmup_time = %us\r\n"), warmup_time / 1000);
         break;
 
+      case 'n':
+        if ((pid_boost_rpm + 1) < rpm_idle) {
+          pid_boost_rpm++;
+        }
+        Serial.printf(F("boost_rpm = %u\r\n"), pid_boost_rpm);
+        break;
+
+      case 'N':
+        if (pid_boost_rpm > 0) {
+          pid_boost_rpm--;
+        }
+        Serial.printf(F("boost_rpm = %u\r\n"), pid_boost_rpm);
+        break;  
+
+      case 'm':
+        pid_boost_kp += PID_TUNING_STEP;
+        Serial.printf(F("boost_kp = %.3f\r\n"), pid_boost_kp);
+        break;   
+
+      case 'M':
+        if (pid_boost_kp < PID_TUNING_STEP) {
+          pid_boost_kp = 0;
+        } else {
+          pid_boost_kp -= PID_TUNING_STEP;
+        }
+        Serial.printf(F("boost_kp = %.3f\r\n"), pid_boost_kp);
+        break;           
+
       case 'a':
         //Status
         Serial.printf(F("\r\nStatus:\r\n"
@@ -203,9 +231,11 @@ void checkserial() {
                         "pid_kd = %.3f\r\n"
                         "rpm_idle = %u\r\n"
                         "rpm_warmup = %u\r\n"
+                        "boost_rpm = %u\r\n"
+                        "boost_kp = %.3f\r\n"
                         "warmup_time = %u/%us\r\n\r\n"
                         ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max,
-                        pid_kp, pid_ki, pid_kd, rpm_idle, rpm_warmup, warmup_remaining / 1000, warmup_time / 1000);
+                        pid_kp, pid_ki, pid_kd, rpm_idle, rpm_warmup, pid_boost_rpm, pid_boost_kp, warmup_remaining / 1000, warmup_time / 1000);
         break;                        
       
       case 'h':
@@ -216,6 +246,8 @@ void checkserial() {
                        "b / B = change pwm_out_min\r\n"
                        "t / T = change pwm_out_max\r\n"
                        "p / P / i / I / d / D = change PID configuration\r\n"
+                       "n / N = change boost_rpm (0 = disable)"
+                       "m / M = change boost_kp"
                        "c / C = enable / disable PID controller\r\n"
                        "+ / - = manual ICV PWM control (PID needs to be disabled first)\r\n"
                        "s / S = save config to EEPROM\r\n"
