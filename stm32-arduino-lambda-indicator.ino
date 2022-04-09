@@ -177,7 +177,7 @@ void setup() {
   if (!pid_on) {                                //manual od PID control?
     pid_output = icv_pwm_man;                   //manual - lets set the output to pwm_man
   } else {                                      //PID control
-    pid_iterm = pid_out_min;                    //set the PID Iterm and output to minimum (it STM restarts by bug this cause car will not start to accel by itself)
+    pid_iterm = pid_out_min;                    //set the PID Iterm and output to minimum (if STM restarts by bug this cause car will not start to accel by itself)
     pid_output = pid_out_min;
   }
   analogWrite(ICV_PWM_OUT, pid_output);       //send output to ICV
