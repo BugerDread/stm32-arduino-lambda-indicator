@@ -85,9 +85,9 @@
   const uint32_t  ICV_PWM_OUT = PA9;          //ICV PWM output (via FET)
 
 //global variables
-  bool engine_running = false;
+//  bool engine_running = false;
   bool warmup_phase = true;
-  unsigned long engine_last_running = 0;
+//  unsigned long engine_last_running = 0;
   unsigned long engine_started = 0;
   uint32_t icv_pwm_man = ICV_PWM_DEFAULT;
   uint32_t warmup_time = WARMUP_TIME_DEFAULT;
@@ -172,6 +172,7 @@ void setup() {
   eeload();                                     //get configuration from eeprom
   pid_set_tunings(pid_kp, pid_ki, pid_kd); 
   pid_setpoint = rpm_warmup;
+  warmup_remaining = warmup_time;
   
   if (!pid_on) {                                //manual od PID control?
     pid_output = icv_pwm_man;                   //manual - lets set the output to pwm_man
@@ -201,6 +202,6 @@ void loop() {
     showvalues();
   }
 
-  checkserial();
-  check_engine_running();
+  check_serial();
+  check_warmup();
 }

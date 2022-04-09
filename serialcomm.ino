@@ -3,7 +3,7 @@ const uint32_t WARMUP_TIME_STEP = 1000;    //1000ms = 1s, its also the minimum f
 
 char sdata, sdata_last = '\r';
 
-void checkserial() {
+void check_serial() {
   while (Serial.available() > 0) {
     sdata = Serial.read();
     switch (sdata) {
