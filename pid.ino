@@ -14,17 +14,17 @@ void pid_compute()
 //        return;
 //      }
    
-      /*Compute all the working error variables*/
-      int32_t error = pid_setpoint - input;
+      /*Compute all the working PID variables*/
+      int32_t pid_error = pid_setpoint - input;
       
-      pid_iterm += (pid_ki_internal * error);
+      pid_iterm += (pid_ki_internal * pid_error);
       if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
         else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
       
       int32_t dInput = input - pid_lastinput;
  
       /*Compute PID Output*/
-      double output = pid_kp_internal * error + pid_iterm - pid_kd_internal * dInput;
+      double output = pid_kp_internal * pid_error + pid_iterm - pid_kd_internal * dInput;
 
       //check if we need boost (to avoid engine dying on lpg)
       if (input < pid_boost_rpm) {
@@ -44,7 +44,7 @@ void pid_compute()
       pid_lastinput = input;
 
 //      if (++pid_debug_cnt >= 10) {
-//        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, error, pid_output);
+//        Serial.printf(F("RPM: %-5u ERR: %-5d OUT: %u\r\n"), rpm_measured, pid_error, pid_output);
 //        pid_debug_cnt = 0;
 //      }
 }
