@@ -177,8 +177,8 @@ void setup() {
   if (!pid_on) {                                //manual od PID control?
     pid_output = icv_pwm_man;                   //manual - lets set the output to pwm_man
   } else {                                      //PID control
-    pid_iterm = pid_out_min;                    //set the PID Iterm and output to minimum
-    pid_output = pid_out_min;
+    pid_iterm = pid_out_max;                    //set the PID Iterm and output to maximum for better starts
+    pid_output = pid_out_max;
   }
   analogWrite(ICV_PWM_OUT, pid_output);       //send output to ICV
   

@@ -2,7 +2,7 @@ void pid_compute()
 {     
       uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
       
-      if ((!pid_on) or (input == 0)) return;    //exit if pid is not on or we dont have rpm signal
+      if (!pid_on) return;    //exit if pid disabled
   
       //do we need to filter the rpm_measured to make sure it is sane?
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
