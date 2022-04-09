@@ -1,9 +1,9 @@
 void pid_compute()
 {     
-      uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
-      
       if (!pid_on) return;    //exit if pid disabled
-  
+      
+      uint32_t input = rpm_measured;   //rpm_measured is a volatile variable, we dont want it to change during computation
+        
       //do we need to filter the rpm_measured to make sure it is sane?
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
