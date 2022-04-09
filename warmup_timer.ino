@@ -19,7 +19,7 @@ void check_warmup() {
     return;
   }
 
-  //we are in startup phase and engine was started
+  //we are in warmup phase and engine was started
   //check if warmup time passed
   unsigned long m = millis();                     //time now
   if ((m - engine_started) >= warmup_time) {
