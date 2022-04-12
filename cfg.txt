@@ -1,0 +1,15 @@
+Status:
+rpm_measured = 1956
+pid_on = true
+pid_setpoint = 1050
+pid_output = 95
+pid_out_min = 95
+pid_out_max = 220
+pid_kp = 0.060
+pid_ki = 0.035
+pid_kd = 0.000
+rpm_idle = 1050
+rpm_warmup = 1500
+boost_rpm = 850
+boost_kp = 0.400
+warmup_time = 0/60s

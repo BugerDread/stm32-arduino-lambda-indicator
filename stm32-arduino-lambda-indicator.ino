@@ -48,7 +48,7 @@
   const uint32_t  RPM_WARMUP_DEFAULT = 1250;
   const uint32_t  WARMUP_TIME_DEFAULT = 60000;        //default warmup time [ms] during that rpm = rpm_warmup
   const uint32_t  WARMUP_TIME_MAX = 300000;   //maximum warmup time (300000 = 5min)
-  const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
+//  const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
   const uint32_t  RPM_MAX = 10000;
   const uint32_t  RPM_MIN = 500;
 
