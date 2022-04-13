@@ -7,24 +7,40 @@ void pid_compute()
       //do we need to filter the rpm_measured to make sure it is sane?
       //rpm_measured == 0 = motor is not spinning or we cant measure such low rpms
       //maybe we will count failed passes and disable ICV control if sane signal not received for a while? - future
-      
 //      if (input == 0) {                     //if we lost the rpm signal
 //        //pid_output = ICV_PWM_DEFAULT;
 //        //analogWrite(ICV_PWM_OUT, pid_output);
 //        return;
 //      }
    
-      /*Compute all the working PID variables*/
+      //Compute PID error variables
       int32_t pid_error = pid_setpoint - input;
+      int32_t dInput = input - pid_lastinput;
+
+      //compute iterm
+      //as a hack lets use Kp as Ki for speed up the engine and Ki to slow it down (so Kp should be > Ki if we want to slow down slower than speed up)
+      //because we are not going to use the Pterm now
+      //but down forget to fix pid_set_tunings (remove "* pid_sample_time_s;" from Kp when Kp will be used again)
+      if (pid_error > 0) {
+        //motor spinning too slow - open ICV faster - use kp as a temp hack
+        pid_iterm += pid_kp_internal * pid_error;
+      } else {
+        //motor spinning too fast - close ICV slowly
+        pid_iterm += pid_ki_internal * pid_error;
+      }
+
+      //add (in fact substract) derivative part to iterm if engine is slowing down
+      if (dInput < 0) {
+        //engine slowing down
+        pid_iterm -= pid_kd_internal * dInput;
+      }
       
-      pid_iterm += (pid_ki_internal * pid_error);
+      //prevent iterm to windup (limit iterm to pid_out_max / pid_out_min)
       if(pid_iterm > pid_out_max) pid_iterm = pid_out_max;
         else if (pid_iterm < pid_out_min) pid_iterm = pid_out_min;
       
-      int32_t dInput = input - pid_lastinput;
- 
       /*Compute PID Output*/
-      double output = pid_kp_internal * pid_error + pid_iterm - pid_kd_internal * dInput;
+      double output = pid_iterm;  // (pid_kp_internal * pid_error) - pid_kd_internal * dInput;
 
       //check if we need boost (to avoid engine dying on lpg)
       if (input < pid_boost_rpm) {
@@ -51,7 +67,7 @@ void pid_compute()
 
 void pid_set_tunings(double Kp, double Ki, double Kd)
 {
-   pid_kp_internal = Kp;
+   pid_kp_internal = Kp * pid_sample_time_s;  //!!!should be without "* pid_sample_time_s" but we are using this constant as temporary 2nd iterm paramatter
    pid_ki_internal = Ki * pid_sample_time_s;
    pid_kd_internal = Kd / pid_sample_time_s;
 
