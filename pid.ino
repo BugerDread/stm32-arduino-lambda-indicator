@@ -69,7 +69,7 @@ void pid_set_tunings(double Kp, double Ki, double Kd)
 {
    pid_kp_internal = Kp * pid_sample_time_s;  //!!!should be without "* pid_sample_time_s" but we are using this constant as temporary 2nd iterm paramatter
    pid_ki_internal = Ki * pid_sample_time_s;
-   pid_kd_internal = Kd / pid_sample_time_s;
+   pid_kd_internal = Kd / pid_sample_time_s / 10; // divided by 10 to make the setting more fine
 
    Serial.printf(F("PID params:\r\n"
                    "pid_sample_time = %.2fms / %uHz\r\n"
