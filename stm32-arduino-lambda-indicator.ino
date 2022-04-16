@@ -55,9 +55,10 @@
   const uint32_t  PID_BOOST_RPM_DEFAULT = 0;      //boost disabled by default
   const double    PID_BOOST_KP_DEFAULT = 0;       //boost disabled by default
 
-  const double    PID_KP_DEFAULT = 0.02;
-  const double    PID_KI_DEFAULT = 0.02;
-  const double    PID_KD_DEFAULT = 0.0;
+  const double    PID_KP_DEFAULT = 0.0;           //default PID constants - P
+  const double    PID_KI_OPEN_DEFAULT = 0.05;     //I when ICV should be opened (engine too slow)
+  const double    PID_KI_CLOSE_DEFAULT = 0.01;    //I when ICV should be closed (engine too fast)
+  const double    PID_KD_DEFAULT = 0.0;           //D
                                               
   const uint32_t  DUTY_LOW = 10;
   const uint32_t  DUTY_HIGH = 90;
@@ -127,9 +128,10 @@
   double pid_iterm = 0;
   uint32_t pid_lastinput = 0;
   double pid_kp = PID_KP_DEFAULT;
-  double pid_ki = PID_KI_DEFAULT;
+  double pid_ki_open = PID_KI_OPEN_DEFAULT;
+  double pid_ki_close = PID_KI_CLOSE_DEFAULT;
   double pid_kd = PID_KD_DEFAULT;
-  double pid_kp_internal, pid_ki_internal, pid_kd_internal; 
+  double pid_kp_internal, pid_ki_open_internal, pid_ki_close_internal, pid_kd_internal; 
   uint32_t pid_out_min = ICV_PWM_MIN_DEFAULT;
   uint32_t pid_out_max = ICV_PWM_MAX_DEFAULT;
   bool pid_on = true;
@@ -170,7 +172,7 @@ void setup() {
   vref_value = analogRead(AVREF);
 
   eeload();                                     //get configuration from eeprom
-  pid_set_tunings(pid_kp, pid_ki, pid_kd); 
+  pid_set_tunings(); 
   pid_setpoint = rpm_warmup;
   warmup_remaining = warmup_time;
   

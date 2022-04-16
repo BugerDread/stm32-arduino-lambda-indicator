@@ -24,7 +24,7 @@ void check_serial() {
 
       case 'p':
         pid_kp += PID_TUNING_STEP;
-        pid_set_tunings(pid_kp, pid_ki, pid_kd);
+        pid_set_tunings();
         break;
       case 'P':
         if (pid_kp < PID_TUNING_STEP) {
@@ -32,25 +32,38 @@ void check_serial() {
         } else {
           pid_kp -= PID_TUNING_STEP;
         }
-        pid_set_tunings(pid_kp, pid_ki, pid_kd);
+        pid_set_tunings();
         break;
 
       case 'i':
-        pid_ki += PID_TUNING_STEP;
-        pid_set_tunings(pid_kp, pid_ki, pid_kd);
+        pid_ki_open += PID_TUNING_STEP;
+        pid_set_tunings();
         break;
       case 'I':
-        if (pid_ki < PID_TUNING_STEP) {
-          pid_ki = 0;
+        if (pid_ki_open < PID_TUNING_STEP) {
+          pid_ki_open = 0;
         } else {
-          pid_ki -= PID_TUNING_STEP;
+          pid_ki_open -= PID_TUNING_STEP;
         }
-        pid_set_tunings(pid_kp, pid_ki, pid_kd);
+        pid_set_tunings();
         break;
+
+      case 'j':
+        pid_ki_close += PID_TUNING_STEP;
+        pid_set_tunings();
+        break;
+      case 'J':
+        if (pid_ki_close < PID_TUNING_STEP) {
+          pid_ki_close = 0;
+        } else {
+          pid_ki_close -= PID_TUNING_STEP;
+        }
+        pid_set_tunings();
+        break;        
 
       case 'd':
         pid_kd += PID_TUNING_STEP;
-        pid_set_tunings(pid_kp, pid_ki, pid_kd);
+        pid_set_tunings();
         break;
       case 'D':
         if (pid_kd < PID_TUNING_STEP) {
@@ -58,7 +71,7 @@ void check_serial() {
         } else {
           pid_kd -= PID_TUNING_STEP;
         }
-        pid_set_tunings(pid_kp, pid_ki, pid_kd);
+        pid_set_tunings();
         break;
 
       case 'b':
@@ -226,8 +239,9 @@ void check_serial() {
                         "pid_output = %u\r\n"
                         "pid_out_min = %u\r\n"
                         "pid_out_max = %u\r\n"
-                        "pid_kp (+) = %.3f\r\n"
-                        "pid_ki (-) = %.3f\r\n"
+                        "pid_kp = %.3f\r\n"
+                        "pid_ki_open = %.3f\r\n"
+                        "pid_ki_close = %.3f\r\n"
                         "pid_kd = %.3f\r\n"
                         "rpm_idle = %u\r\n"
                         "rpm_warmup = %u\r\n"
@@ -235,7 +249,8 @@ void check_serial() {
                         "boost_kp = %.3f\r\n"
                         "warmup_time = %u/%us\r\n\r\n"
                         ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max,
-                        pid_kp, pid_ki, pid_kd, rpm_idle, rpm_warmup, pid_boost_rpm, pid_boost_kp, warmup_remaining / 1000, warmup_time / 1000);
+                        pid_kp, pid_ki_open, pid_ki_close, pid_kd, rpm_idle, rpm_warmup, pid_boost_rpm, pid_boost_kp,
+                        warmup_remaining / 1000, warmup_time / 1000);
         break;                        
       
       case 'h':
@@ -245,7 +260,7 @@ void check_serial() {
                        "e / E = change warmup time\r\n"
                        "b / B = change pwm_out_min\r\n"
                        "t / T = change pwm_out_max\r\n"
-                       "p / P / i / I / d / D = change PID configuration\r\n"
+                       "p / P / i / I / j / J / d / D = change PID params\r\n"
                        "n / N = change boost_rpm (0 = disable)\r\n"
                        "m / M = change boost_kp\r\n"
                        "c / C = enable / disable PID controller\r\n"
