@@ -59,6 +59,10 @@
   const double    PID_KI_OPEN_DEFAULT = 0.05;     //I when ICV should be opened (engine too slow)
   const double    PID_KI_CLOSE_DEFAULT = 0.01;    //I when ICV should be closed (engine too fast)
   const double    PID_KD_DEFAULT = 0.0;           //D
+
+  const int32_t   PID_D_MAX_MIN = -1000;          //minimum of pid_d_max
+  const int32_t   PID_D_MAX_MAX = 1000;           //maximum of pid_d_max
+  const int32_t   PID_D_MAX_DEFAULT = 0;          //default for pid_d_max
                                               
   const uint32_t  DUTY_LOW = 10;
   const uint32_t  DUTY_HIGH = 90;
@@ -137,6 +141,7 @@
   bool pid_on = true;
   uint32_t pid_boost_rpm = PID_BOOST_RPM_DEFAULT;
   double pid_boost_kp = PID_BOOST_KP_DEFAULT;
+  int32_t pid_d_max = PID_D_MAX_DEFAULT;
 
 void setup() {
   Serial.begin(115200);

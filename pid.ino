@@ -15,7 +15,7 @@ void pid_compute()
    
       //Compute PID error variables
       int32_t pid_error = pid_setpoint - input;
-      int32_t dInput = input - pid_lastinput;
+      int32_t dInput = input - pid_lastinput;   //derivation of input rpm - if negative engine slowing down / positive speeding up
 
       //compute iterm
       if (pid_error > 0) {
@@ -26,9 +26,14 @@ void pid_compute()
         pid_iterm += pid_ki_close_internal * pid_error;
       }
 
-      //add (in fact substract) derivative part to iterm if engine is slowing down
-      if (dInput < 0) {
-        //engine slowing down
+      //add (in fact substract) derivative part to iterm if dterm id lower than pid_d_max
+      //if pid_d_max = 0 means Dterm will be added if engine slowing down
+      //if pid_d_max = -10 means Dterm will be added if engine slowing down at least 100rpm/s (10rpm in 1/10sec)
+      //if pid_d_max = 10 means Dterm will be added if engine slowing down (no matter how fast) OR speeeding up at most 100rpm/s
+      //more negative this number is the endine needs to slow down faster for Dterm to be added / applied - it filters out small changes
+      //more positive this number is it will be added also when speeding up more (dunno if this is usefull, maybe only values <=0 will make sense IRL)
+      //maybe addind also small positive changes will also filter out small changes?? will see
+      if (dInput < pid_d_max) {
         pid_iterm -= pid_kd_internal * dInput;
       }
       

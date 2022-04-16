@@ -228,7 +228,21 @@ void check_serial() {
           pid_boost_kp -= PID_TUNING_STEP;
         }
         Serial.printf(F("boost_kp = %.3f\r\n"), pid_boost_kp);
-        break;           
+        break;        
+      
+      case 'x':
+        if (pid_d_max < PID_D_MAX_MAX) {
+          pid_d_max++;
+        }
+        Serial.printf(F("pid_d_max = %+i\r\n"), pid_d_max);
+        break;
+        
+      case 'X':
+        if (pid_d_max > PID_D_MAX_MIN) {
+          pid_d_max--;
+        }
+        Serial.printf(F("pid_d_max = %+i\r\n"), pid_d_max);
+        break;
 
       case 'a':
         //Status
@@ -243,13 +257,14 @@ void check_serial() {
                         "pid_ki_open = %.3f\r\n"
                         "pid_ki_close = %.3f\r\n"
                         "pid_kd = %.3f\r\n"
+                        "pid_d_max = %+i\r\n"
                         "rpm_idle = %u\r\n"
                         "rpm_warmup = %u\r\n"
                         "boost_rpm = %u\r\n"
                         "boost_kp = %.3f\r\n"
                         "warmup_time = %u/%us\r\n\r\n"
                         ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max,
-                        pid_kp, pid_ki_open, pid_ki_close, pid_kd, rpm_idle, rpm_warmup, pid_boost_rpm, pid_boost_kp,
+                        pid_kp, pid_ki_open, pid_ki_close, pid_kd, pid_d_max, rpm_idle, rpm_warmup, pid_boost_rpm, pid_boost_kp,
                         warmup_remaining / 1000, warmup_time / 1000);
         break;                        
       
@@ -261,6 +276,7 @@ void check_serial() {
                        "b / B = change pwm_out_min\r\n"
                        "t / T = change pwm_out_max\r\n"
                        "p / P / i / I / j / J / d / D = change PID params\r\n"
+                       "x / X = change pid_d_max"
                        "n / N = change boost_rpm (0 = disable)\r\n"
                        "m / M = change boost_kp\r\n"
                        "c / C = enable / disable PID controller\r\n"
@@ -272,9 +288,9 @@ void check_serial() {
         break;
     }
     
-    if ((sdata != '\r') or (sdata != '\n')) {
+    //if ((sdata != '\r') or (sdata != '\n')) {     //kinda pointless condition evaluated always as true 
       sdata_last = sdata;
-    }
+    //}
     
   }
 }
