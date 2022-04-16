@@ -67,6 +67,17 @@ void pid_compute()
 //      }
 }
 
+void print_pid_params() {
+  Serial.printf(F("PID params:\r\n"
+               "pid_sample_time = %.2fms / %uHz\r\n"
+               "pid_kp = %.3f\r\n"
+               "pid_ki_open = %.3f\r\n"
+               "pid_ki_close = %.3f\r\n"
+               "pid_kd = %.3f\r\n"),
+               pid_sample_time_s * 1000, PRM_DUTY_TIMER_IFREQ / 65536,
+               pid_kp, pid_ki_open, pid_ki_close, pid_kd);
+}
+
 void pid_set_tunings()
 //gets: pid_kp, pid_ki_open, pid_ki_close, pid_kd, pid_sample_time_s
 //sets: pid_kp_internal, pid_ki_open_internal, pid_ki_close_internal, pid_kd_internal
@@ -76,12 +87,5 @@ void pid_set_tunings()
    pid_ki_close_internal = pid_ki_close * pid_sample_time_s;
    pid_kd_internal = pid_kd / pid_sample_time_s / 10; // divided by 10 to make the setting more fine
 
-   Serial.printf(F("PID params:\r\n"
-                   "pid_sample_time = %.2fms / %uHz\r\n"
-                   "pid_kp = %.3f\r\n"
-                   "pid_ki_open = %.3f\r\n"
-                   "pid_ki_close = %.3f\r\n"
-                   "pid_kd = %.3f\r\n"),
-                   pid_sample_time_s * 1000, PRM_DUTY_TIMER_IFREQ / 65536,
-                   pid_kp, pid_ki_open, pid_ki_close, pid_kd);
+   print_pid_params();
 }

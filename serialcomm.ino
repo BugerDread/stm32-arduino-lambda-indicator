@@ -3,6 +3,46 @@ const uint32_t WARMUP_TIME_STEP = 1000;    //1000ms = 1s, its also the minimum f
 
 char sdata, sdata_last = '\r';
 
+void print_rpm_idle() {
+  Serial.printf(F("rpm_idle = %u\r\n"), rpm_idle);
+}
+
+void print_pid_out_min() {
+  Serial.printf(F("pid_out_min = %u\r\n"), pid_out_min);
+}
+
+void print_pid_out_max() {
+  Serial.printf(F("pid_out_max = %u\r\n"), pid_out_max);
+}
+
+void print_pid_on() {
+  Serial.printf(F("pid_on = %s\r\n"), pid_on ? "true" : "false");
+}
+
+void print_pid_output() {
+  Serial.printf(F("pid_output = %u\r\n"), pid_output);
+}
+
+void print_rpm_warmup() {
+  Serial.printf(F("rpm_warmup = %u\r\n"), rpm_warmup);
+}
+
+void print_warmup_time() {
+  Serial.printf(F("warmup_time = %us\r\n"), warmup_time / 1000);
+}
+
+void print_pid_boost_rpm() {
+  Serial.printf(F("pid_boost_rpm = %u\r\n"), pid_boost_rpm);
+}
+
+void print_pid_boost_kp() {
+  Serial.printf(F("pid_boost_kp = %.3f\r\n"), pid_boost_kp);
+}
+
+void print_pid_d_max() {
+  Serial.printf(F("pid_d_max = %+i\r\n"), pid_d_max);
+}
+
 void check_serial() {
   while (Serial.available() > 0) {
     sdata = Serial.read();
@@ -12,14 +52,14 @@ void check_serial() {
           rpm_idle++;
           pid_setpoint = rpm_idle;
         }
-        Serial.printf(F("rpm_idle = %u\r\n"), rpm_idle);
+        print_rpm_idle();
         break;
       case 'R':
         if (rpm_idle > RPM_MIN) {
           rpm_idle--;
           pid_setpoint = rpm_idle;
         }
-        Serial.printf(F("rpm_idle = %u\r\n"), rpm_idle);
+        print_rpm_idle();
         break;
 
       case 'p':
@@ -78,26 +118,26 @@ void check_serial() {
         if (pid_out_min < 255) {
           pid_out_min++;
         }
-        Serial.printf(F("pid_out_min = %u\r\n"), pid_out_min);
+        print_pid_out_min();
         break;
       case 'B':
         if (pid_out_min > 0) {
           pid_out_min--;
         }
-        Serial.printf(F("pid_out_min = %u\r\n"), pid_out_min);
+        print_pid_out_min();
         break;
 
       case 't':
         if (pid_out_max < 255) {
           pid_out_max++;
         }
-        Serial.printf(F("pid_out_max = %u\r\n"), pid_out_max);
+        print_pid_out_max();
         break;
       case 'T':
         if (pid_out_max > 0) {
           pid_out_max--;
         }
-        Serial.printf(F("pid_out_max = %u\r\n"), pid_out_max);
+        print_pid_out_max();
         break;
       
       case 's':
@@ -130,11 +170,11 @@ void check_serial() {
 
       case 'c':
         pid_on = true;
-        Serial.println(F("PID controller enabled"));
+        print_pid_on();
         break;
       case 'C':
         pid_on = false;
-        Serial.println(F("PID controller disabled"));
+        print_pid_on();
         break;       
 
       case '+':
@@ -147,7 +187,7 @@ void check_serial() {
           icv_pwm_man = pid_output;
           analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
         }
-        Serial.printf(F("pid_out = %u\r\n"), pid_output);
+        print_pid_output();
         break;
       case '-':
         if (pid_on) {
@@ -159,7 +199,7 @@ void check_serial() {
           icv_pwm_man = pid_output;
           analogWrite(ICV_PWM_OUT, pid_output);               //send output to ICV
         }
-        Serial.printf(F("pid_out = %u\r\n"), pid_output);
+        print_pid_output();
         break;
 
       case 'w':
@@ -170,7 +210,7 @@ void check_serial() {
             pid_setpoint = rpm_warmup;
           }
         }
-        Serial.printf(F("rpm_warmup = %u\r\n"), rpm_warmup);
+        print_rpm_warmup();
         break;
 
       case 'W':
@@ -181,7 +221,7 @@ void check_serial() {
             pid_setpoint = rpm_warmup;
           }
         }
-        Serial.printf(F("rpm_warmup = %u\r\n"), rpm_warmup);
+        print_rpm_warmup();
         break;
 
       case 'e':
@@ -190,7 +230,7 @@ void check_serial() {
         } else {
           warmup_time = WARMUP_TIME_MAX;
         }
-        Serial.printf(F("warmup_time = %us\r\n"), warmup_time / 1000);
+        print_warmup_time();
         break;
 
       case 'E':
@@ -199,26 +239,26 @@ void check_serial() {
         } else {
           warmup_time = WARMUP_TIME_STEP;
         }
-        Serial.printf(F("warmup_time = %us\r\n"), warmup_time / 1000);
+        print_warmup_time();
         break;
 
       case 'n':
         if ((pid_boost_rpm + 1) < rpm_idle) {
           pid_boost_rpm++;
         }
-        Serial.printf(F("boost_rpm = %u\r\n"), pid_boost_rpm);
+        print_pid_boost_rpm();
         break;
 
       case 'N':
         if (pid_boost_rpm > 0) {
           pid_boost_rpm--;
         }
-        Serial.printf(F("boost_rpm = %u\r\n"), pid_boost_rpm);
+        print_pid_boost_rpm();
         break;  
 
       case 'm':
         pid_boost_kp += PID_TUNING_STEP;
-        Serial.printf(F("boost_kp = %.3f\r\n"), pid_boost_kp);
+        print_pid_boost_kp();
         break;   
 
       case 'M':
@@ -227,45 +267,40 @@ void check_serial() {
         } else {
           pid_boost_kp -= PID_TUNING_STEP;
         }
-        Serial.printf(F("boost_kp = %.3f\r\n"), pid_boost_kp);
+        print_pid_boost_kp();
         break;        
       
       case 'x':
         if (pid_d_max < PID_D_MAX_MAX) {
           pid_d_max++;
         }
-        Serial.printf(F("pid_d_max = %+i\r\n"), pid_d_max);
+        print_pid_d_max();
         break;
         
       case 'X':
         if (pid_d_max > PID_D_MAX_MIN) {
           pid_d_max--;
         }
-        Serial.printf(F("pid_d_max = %+i\r\n"), pid_d_max);
+        print_pid_d_max();
         break;
 
       case 'a':
         //Status
         Serial.printf(F("\r\nStatus:\r\n"
                         "rpm_measured = %u\r\n"
-                        "pid_on = %s\r\n"
                         "pid_setpoint = %u\r\n"
-                        "pid_output = %u\r\n"
-                        "pid_out_min = %u\r\n"
-                        "pid_out_max = %u\r\n"
-                        "pid_kp = %.3f\r\n"
-                        "pid_ki_open = %.3f\r\n"
-                        "pid_ki_close = %.3f\r\n"
-                        "pid_kd = %.3f\r\n"
-                        "pid_d_max = %+i\r\n"
-                        "rpm_idle = %u\r\n"
-                        "rpm_warmup = %u\r\n"
-                        "boost_rpm = %u\r\n"
-                        "boost_kp = %.3f\r\n"
-                        "warmup_time = %u/%us\r\n\r\n"
-                        ), rpm_measured, pid_on ? "true" : "false", pid_setpoint, pid_output, pid_out_min, pid_out_max,
-                        pid_kp, pid_ki_open, pid_ki_close, pid_kd, pid_d_max, rpm_idle, rpm_warmup, pid_boost_rpm, pid_boost_kp,
-                        warmup_remaining / 1000, warmup_time / 1000);
+                        ), rpm_measured, pid_setpoint);
+        print_pid_on();
+        print_pid_output();
+        print_rpm_idle();
+        print_rpm_warmup();
+        print_warmup_time();
+        print_pid_params();
+        print_pid_out_min();
+        print_pid_out_max();
+        print_pid_boost_rpm();
+        print_pid_boost_kp();
+        print_pid_d_max();
         break;                        
       
       case 'h':
