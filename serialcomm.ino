@@ -292,15 +292,15 @@ void check_serial() {
                         ), rpm_measured, pid_setpoint);
         print_pid_on();
         print_pid_output();
-        print_rpm_idle();
-        print_rpm_warmup();
-        print_warmup_time();
         print_pid_params();
         print_pid_out_min();
         print_pid_out_max();
         print_pid_boost_rpm();
         print_pid_boost_kp();
         print_pid_d_max();
+        print_rpm_idle();
+        print_rpm_warmup();
+        print_warmup_time();
         break;                        
       
       case 'h':
@@ -311,7 +311,7 @@ void check_serial() {
                        "b / B = change pwm_out_min\r\n"
                        "t / T = change pwm_out_max\r\n"
                        "p / P / i / I / j / J / d / D = change PID params\r\n"
-                       "x / X = change pid_d_max"
+                       "x / X = change pid_d_max\r\n"
                        "n / N = change boost_rpm (0 = disable)\r\n"
                        "m / M = change boost_kp\r\n"
                        "c / C = enable / disable PID controller\r\n"

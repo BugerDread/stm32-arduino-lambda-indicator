@@ -68,7 +68,7 @@ void pid_compute()
 }
 
 void print_pid_params() {
-  Serial.printf(F("PID params:\r\n"
+  Serial.printf(F("\r\nPID params:\r\n"
                "pid_sample_time = %.2fms / %uHz\r\n"
                "pid_kp = %.3f\r\n"
                "pid_ki_open = %.3f\r\n"

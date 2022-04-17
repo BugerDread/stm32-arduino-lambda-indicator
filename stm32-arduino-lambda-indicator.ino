@@ -41,11 +41,11 @@
   const uint32_t  ICV_PWM_BITS = 8;           //number of bits of ICV PWM
   const uint32_t  ICV_PWM_FREQ = 100;         //ICV PWM frequency
   const uint32_t  ICV_PWM_DEFAULT = 0;      //initial value of ICV PWM
-  const uint32_t  ICV_PWM_MIN_DEFAULT = 78;   //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power) = about 4V
-  const uint32_t  ICV_PWM_MAX_DEFAULT = 200;  //cca 200 - maximum ICV PWM out during regulation (usually full range) = about 8V
+  const uint32_t  ICV_PWM_MIN_DEFAULT = 85;   //cca 78 - minimum ICV PWM out during regulation (to skip initial 20% open wo power) = about 4V
+  const uint32_t  ICV_PWM_MAX_DEFAULT = 220;  //cca 200 - maximum ICV PWM out during regulation (usually full range) = about 8V
 
-  const uint32_t  RPM_IDLE_DEFAULT = 750;
-  const uint32_t  RPM_WARMUP_DEFAULT = 1250;
+  const uint32_t  RPM_IDLE_DEFAULT = 1000;
+  const uint32_t  RPM_WARMUP_DEFAULT = 1499;
   const uint32_t  WARMUP_TIME_DEFAULT = 60000;        //default warmup time [ms] during that rpm = rpm_warmup
   const uint32_t  WARMUP_TIME_MAX = 300000;   //maximum warmup time (300000 = 5min)
 //  const uint32_t  ENGINE_TIMEOUT = 5000;      //when rpm=0 for this time then engine is considered stopped
@@ -56,9 +56,9 @@
   const double    PID_BOOST_KP_DEFAULT = 0;       //boost disabled by default
 
   const double    PID_KP_DEFAULT = 0.0;           //default PID constants - P
-  const double    PID_KI_OPEN_DEFAULT = 0.05;     //I when ICV should be opened (engine too slow)
-  const double    PID_KI_CLOSE_DEFAULT = 0.01;    //I when ICV should be closed (engine too fast)
-  const double    PID_KD_DEFAULT = 0.0;           //D
+  const double    PID_KI_OPEN_DEFAULT = 0.050;    //I when ICV should be opened (engine too slow)
+  const double    PID_KI_CLOSE_DEFAULT = 0.015;   //I when ICV should be closed (engine too fast)
+  const double    PID_KD_DEFAULT = 0.015;         //D
 
   const int32_t   PID_D_MAX_MIN = -1000;          //minimum of pid_d_max
   const int32_t   PID_D_MAX_MAX = 1000;           //maximum of pid_d_max
